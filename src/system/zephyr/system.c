@@ -16,7 +16,7 @@
 #include <stddef.h>
 #include <sys/time.h>
 #include <unistd.h>
-#include <zephyr.h>
+#include <zephyr/kernel.h>
 
 #include "zenoh-pico/config.h"
 #include "zenoh-pico/system/platform.h"
@@ -51,7 +51,7 @@ void z_free(void *ptr) { k_free(ptr); }
 #if Z_MULTI_THREAD == 1
 
 #define Z_THREADS_NUM 4
-#define Z_PTHREAD_STACK_SIZE_DEFAULT CONFIG_MAIN_STACK_SIZE + CONFIG_TEST_EXTRA_STACKSIZE
+#define Z_PTHREAD_STACK_SIZE_DEFAULT CONFIG_MAIN_STACK_SIZE
 K_THREAD_STACK_ARRAY_DEFINE(thread_stack_area, Z_THREADS_NUM, Z_PTHREAD_STACK_SIZE_DEFAULT);
 static int thread_index = 0;
 
