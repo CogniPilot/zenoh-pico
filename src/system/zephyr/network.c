@@ -15,6 +15,8 @@
 #include <netdb.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <string.h>
+#include <unistd.h>
 #include <sys/socket.h>
 
 #include "zenoh-pico/collections/string.h"
