@@ -15,6 +15,8 @@
 #include <stddef.h>
 #include <string.h>
 
+#include <sys/time.h>
+
 #include "zenoh-pico/link/manager.h"
 #include "zenoh-pico/protocol/codec/transport.h"
 #include "zenoh-pico/protocol/core.h"

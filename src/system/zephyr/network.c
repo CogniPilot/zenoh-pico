@@ -24,6 +24,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 
 #include "zenoh-pico/collections/string.h"
 #include "zenoh-pico/config.h"
