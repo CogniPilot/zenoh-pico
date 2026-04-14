@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define ZP_ZEPHYR_ZENOH_SHELL_MAX_INFO_IDS 4U
+#define ZP_ZEPHYR_ZENOH_SHELL_MAX_INFO_IDS   4U
 #define ZP_ZEPHYR_ZENOH_SHELL_MAX_ID_STR_LEN 33U
 
 enum zp_zephyr_zenoh_shell_state {
@@ -43,7 +43,8 @@ struct zp_zephyr_zenoh_shell_status_snapshot {
 	struct zp_zephyr_zenoh_shell_id_list_snapshot peers;
 };
 
-bool zp_zephyr_zenoh_shell_latest_sample_get(struct zp_zephyr_zenoh_shell_sample_snapshot *snapshot);
+bool zp_zephyr_zenoh_shell_latest_sample_get(
+	struct zp_zephyr_zenoh_shell_sample_snapshot *snapshot);
 void zp_zephyr_zenoh_shell_status_get(struct zp_zephyr_zenoh_shell_status_snapshot *snapshot);
 const char *zp_zephyr_zenoh_shell_state_name(enum zp_zephyr_zenoh_shell_state state);
 void zp_zephyr_zenoh_shell_sample_clear(void);

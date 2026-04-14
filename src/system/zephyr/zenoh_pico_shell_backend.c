@@ -34,7 +34,8 @@ struct zp_zephyr_zenoh_shell_id_capture_context {
 
 static struct zp_zephyr_zenoh_shell_sample_store g_zp_zephyr_zenoh_shell_store;
 static struct zp_zephyr_zenoh_shell_info_store g_zp_zephyr_zenoh_shell_info;
-static K_THREAD_STACK_DEFINE(g_zp_zephyr_zenoh_shell_thread_stack, CONFIG_ZENOH_PICO_SHELL_THREAD_STACK_SIZE);
+static K_THREAD_STACK_DEFINE(g_zp_zephyr_zenoh_shell_thread_stack,
+			     CONFIG_ZENOH_PICO_SHELL_THREAD_STACK_SIZE);
 static struct k_thread g_zp_zephyr_zenoh_shell_thread;
 K_MUTEX_DEFINE(g_zp_zephyr_zenoh_shell_store_lock);
 K_MUTEX_DEFINE(g_zp_zephyr_zenoh_shell_info_lock);
@@ -67,7 +68,7 @@ static void zp_zephyr_zenoh_shell_info_clear(void)
 }
 
 static void zp_zephyr_zenoh_shell_id_list_store(struct zp_zephyr_zenoh_shell_id_list_snapshot *list,
-				     const z_id_t *id)
+						const z_id_t *id)
 {
 	z_owned_string_t id_str;
 	size_t len;
@@ -86,8 +87,7 @@ static void zp_zephyr_zenoh_shell_id_list_store(struct zp_zephyr_zenoh_shell_id_
 		return;
 	}
 
-	len = MIN(z_string_len(z_loan(id_str)),
-		  sizeof(list->ids[list->count]) - 1U);
+	len = MIN(z_string_len(z_loan(id_str)), sizeof(list->ids[list->count]) - 1U);
 	memcpy(list->ids[list->count], z_string_data(z_loan(id_str)), len);
 	list->ids[list->count][len] = '\0';
 	list->count++;
@@ -106,7 +106,7 @@ static void zp_zephyr_zenoh_shell_id_capture_handler(const z_id_t *id, void *ctx
 }
 
 static void zp_zephyr_zenoh_shell_info_set_local_zid(struct zp_zephyr_zenoh_shell_info_store *info,
-					  const z_id_t *id)
+						     const z_id_t *id)
 {
 	z_owned_string_t id_str;
 	size_t len;
@@ -120,8 +120,7 @@ static void zp_zephyr_zenoh_shell_info_set_local_zid(struct zp_zephyr_zenoh_shel
 		return;
 	}
 
-	len = MIN(z_string_len(z_loan(id_str)),
-		  sizeof(info->local_zid) - 1U);
+	len = MIN(z_string_len(z_loan(id_str)), sizeof(info->local_zid) - 1U);
 	memcpy(info->local_zid, z_string_data(z_loan(id_str)), len);
 	info->local_zid[len] = '\0';
 	z_drop(z_move(id_str));
@@ -153,8 +152,8 @@ static void zp_zephyr_zenoh_shell_info_capture(const z_loaned_session_t *session
 	}
 
 	z_internal_null(&callback);
-	if (z_closure_zid(&callback, zp_zephyr_zenoh_shell_id_capture_handler, NULL,
-			  &peers_ctx) == 0) {
+	if (z_closure_zid(&callback, zp_zephyr_zenoh_shell_id_capture_handler, NULL, &peers_ctx) ==
+	    0) {
 		(void)z_info_peers_zid(session, z_move(callback));
 	}
 
@@ -186,8 +185,7 @@ static void zp_zephyr_zenoh_shell_store_publish(z_loaned_sample_t *sample)
 	(void)z_bytes_reader_read(&reader, slot->payload, payload_stored_len);
 
 	if (z_keyexpr_as_view_string(z_sample_keyexpr(sample), &keystr) == 0) {
-		keyexpr_len = MIN(z_string_len(z_loan(keystr)),
-				  sizeof(slot->keyexpr) - 1U);
+		keyexpr_len = MIN(z_string_len(z_loan(keystr)), sizeof(slot->keyexpr) - 1U);
 		memcpy(slot->keyexpr, z_string_data(z_loan(keystr)), keyexpr_len);
 		slot->keyexpr[keyexpr_len] = '\0';
 	}
@@ -226,8 +224,7 @@ static int zp_zephyr_zenoh_shell_config_init(z_owned_config_t *config)
 		return rc;
 	}
 
-	rc = zp_config_insert(z_loan_mut(*config), Z_CONFIG_MODE_KEY,
-			      CONFIG_ZENOH_PICO_SHELL_MODE);
+	rc = zp_config_insert(z_loan_mut(*config), Z_CONFIG_MODE_KEY, CONFIG_ZENOH_PICO_SHELL_MODE);
 	if (rc < 0) {
 		return rc;
 	}
@@ -244,7 +241,7 @@ static int zp_zephyr_zenoh_shell_config_init(z_owned_config_t *config)
 }
 
 static int zp_zephyr_zenoh_shell_session_open(z_owned_session_t *session,
-				   z_owned_subscriber_t *subscriber)
+					      z_owned_subscriber_t *subscriber)
 {
 	z_owned_config_t config;
 	z_owned_closure_sample_t callback;
@@ -274,8 +271,8 @@ static int zp_zephyr_zenoh_shell_session_open(z_owned_session_t *session,
 		return rc;
 	}
 
-	rc = z_declare_subscriber(z_loan(*session), subscriber, z_loan(keyexpr),
-				  z_move(callback), NULL);
+	rc = z_declare_subscriber(z_loan(*session), subscriber, z_loan(keyexpr), z_move(callback),
+				  NULL);
 	if (rc < 0) {
 		z_drop(z_move(callback));
 		z_drop(z_move(*session));
@@ -345,8 +342,7 @@ static void zp_zephyr_zenoh_shell_thread_entry(void *arg0, void *arg1, void *arg
 		atomic_set(&g_zp_zephyr_zenoh_shell_state,
 			   (atomic_val_t)ZP_ZEPHYR_ZENOH_SHELL_STATE_CONNECTED);
 		zp_zephyr_zenoh_shell_info_capture(z_loan(session));
-		LOG_INF("zenoh %s %s keyexpr=%s",
-			CONFIG_ZENOH_PICO_SHELL_MODE,
+		LOG_INF("zenoh %s %s keyexpr=%s", CONFIG_ZENOH_PICO_SHELL_MODE,
 			CONFIG_ZENOH_PICO_SHELL_CONNECT_LOCATOR,
 			CONFIG_ZENOH_PICO_SHELL_SUB_KEYEXPR);
 
@@ -354,7 +350,8 @@ static void zp_zephyr_zenoh_shell_thread_entry(void *arg0, void *arg1, void *arg
 			k_sleep(K_MSEC(CONFIG_ZENOH_PICO_SHELL_RETRY_MS));
 		}
 
-		atomic_set(&g_zp_zephyr_zenoh_shell_state, (atomic_val_t)ZP_ZEPHYR_ZENOH_SHELL_STATE_IDLE);
+		atomic_set(&g_zp_zephyr_zenoh_shell_state,
+			   (atomic_val_t)ZP_ZEPHYR_ZENOH_SHELL_STATE_IDLE);
 		zp_zephyr_zenoh_shell_info_clear();
 		LOG_WRN("zenoh session closed, retrying");
 		z_drop(z_move(subscriber));
@@ -399,10 +396,8 @@ void zp_zephyr_zenoh_shell_status_get(struct zp_zephyr_zenoh_shell_status_snapsh
 	snapshot->last_error = (int32_t)atomic_get(&g_zp_zephyr_zenoh_shell_last_error);
 	snapshot->connect_attempts =
 		(uint32_t)atomic_get(&g_zp_zephyr_zenoh_shell_connect_attempts);
-	snapshot->open_failures =
-		(uint32_t)atomic_get(&g_zp_zephyr_zenoh_shell_open_failures);
-	snapshot->sessions_opened =
-		(uint32_t)atomic_get(&g_zp_zephyr_zenoh_shell_sessions_opened);
+	snapshot->open_failures = (uint32_t)atomic_get(&g_zp_zephyr_zenoh_shell_open_failures);
+	snapshot->sessions_opened = (uint32_t)atomic_get(&g_zp_zephyr_zenoh_shell_sessions_opened);
 
 	k_mutex_lock(&g_zp_zephyr_zenoh_shell_info_lock, K_FOREVER);
 	memcpy(snapshot->local_zid, g_zp_zephyr_zenoh_shell_info.local_zid,

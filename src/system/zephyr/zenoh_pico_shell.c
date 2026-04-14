@@ -15,9 +15,9 @@
 
 #include <zenoh-pico.h>
 
-#define ZP_ZEPHYR_ZENOH_SHELL_WATCH_POLL_MS 100U
-#define ZP_ZEPHYR_ZENOH_SHELL_WATCH_STACK_SIZE 4096U
-#define ZP_ZEPHYR_ZENOH_SHELL_WATCH_MAX_KEYS 4U
+#define ZP_ZEPHYR_ZENOH_SHELL_WATCH_POLL_MS          100U
+#define ZP_ZEPHYR_ZENOH_SHELL_WATCH_STACK_SIZE       4096U
+#define ZP_ZEPHYR_ZENOH_SHELL_WATCH_MAX_KEYS         4U
 #define ZP_ZEPHYR_ZENOH_SHELL_SHELL_WORKQ_STACK_SIZE 4096U
 
 struct zp_zephyr_zenoh_shell_watch {
@@ -63,16 +63,16 @@ static const char *zp_zephyr_zenoh_shell_sample_kind_name(uint8_t kind)
 	}
 }
 
-static void zp_zephyr_zenoh_shell_print_hexdump(const struct shell *sh,
-				     const struct zp_zephyr_zenoh_shell_sample_snapshot *sample)
+static void
+zp_zephyr_zenoh_shell_print_hexdump(const struct shell *sh,
+				    const struct zp_zephyr_zenoh_shell_sample_snapshot *sample)
 {
 	size_t offset = 0U;
 
 	while (offset < sample->payload_stored_len) {
 		char hex[(16U * 3U) + 1U];
 		char ascii[17];
-		size_t chunk = MIN((size_t)16U,
-				   sample->payload_stored_len - offset);
+		size_t chunk = MIN((size_t)16U, sample->payload_stored_len - offset);
 		size_t hex_pos = 0U;
 
 		memset(hex, ' ', sizeof(hex) - 1U);
@@ -82,8 +82,7 @@ static void zp_zephyr_zenoh_shell_print_hexdump(const struct shell *sh,
 		for (size_t i = 0; i < chunk; ++i) {
 			uint8_t value = sample->payload[offset + i];
 
-			snprintk(&hex[hex_pos], sizeof(hex) - hex_pos,
-				 "%02x ", value);
+			snprintk(&hex[hex_pos], sizeof(hex) - hex_pos, "%02x ", value);
 			hex_pos += 3U;
 			ascii[i] = isprint(value) ? (char)value : '.';
 		}
@@ -93,8 +92,9 @@ static void zp_zephyr_zenoh_shell_print_hexdump(const struct shell *sh,
 	}
 }
 
-static void zp_zephyr_zenoh_shell_print_text(const struct shell *sh,
-				  const struct zp_zephyr_zenoh_shell_sample_snapshot *sample)
+static void
+zp_zephyr_zenoh_shell_print_text(const struct shell *sh,
+				 const struct zp_zephyr_zenoh_shell_sample_snapshot *sample)
 {
 	char line[(16U * 4U) + 1U];
 	size_t line_pos = 0U;
@@ -115,21 +115,17 @@ static void zp_zephyr_zenoh_shell_print_text(const struct shell *sh,
 		}
 
 		if (value == '\n') {
-			rc = snprintk(&line[line_pos], sizeof(line) - line_pos,
-				      "\\n");
+			rc = snprintk(&line[line_pos], sizeof(line) - line_pos, "\\n");
 		} else if (value == '\r') {
-			rc = snprintk(&line[line_pos], sizeof(line) - line_pos,
-				      "\\r");
+			rc = snprintk(&line[line_pos], sizeof(line) - line_pos, "\\r");
 		} else if (value == '\t') {
-			rc = snprintk(&line[line_pos], sizeof(line) - line_pos,
-				      "\\t");
+			rc = snprintk(&line[line_pos], sizeof(line) - line_pos, "\\t");
 		} else if (isprint(value)) {
 			line[line_pos++] = (char)value;
 			line[line_pos] = '\0';
 			continue;
 		} else {
-			rc = snprintk(&line[line_pos], sizeof(line) - line_pos,
-				      "\\x%02x", value);
+			rc = snprintk(&line[line_pos], sizeof(line) - line_pos, "\\x%02x", value);
 		}
 
 		if (rc <= 0) {
@@ -146,26 +142,24 @@ static void zp_zephyr_zenoh_shell_print_text(const struct shell *sh,
 
 static void zp_zephyr_zenoh_shell_print_config(const struct shell *sh)
 {
-	shell_print(sh,
-		    "mode=%s locator=%s sub_keyexpr=%s retry_ms=%u",
-		    CONFIG_ZENOH_PICO_SHELL_MODE,
-		    CONFIG_ZENOH_PICO_SHELL_CONNECT_LOCATOR,
+	shell_print(sh, "mode=%s locator=%s sub_keyexpr=%s retry_ms=%u",
+		    CONFIG_ZENOH_PICO_SHELL_MODE, CONFIG_ZENOH_PICO_SHELL_CONNECT_LOCATOR,
 		    CONFIG_ZENOH_PICO_SHELL_SUB_KEYEXPR,
 		    (unsigned int)CONFIG_ZENOH_PICO_SHELL_RETRY_MS);
-	shell_print(sh,
-		    "thread prio=%d stack=%u max_payload=%u max_keyexpr=%u",
+	shell_print(sh, "thread prio=%d stack=%u max_payload=%u max_keyexpr=%u",
 		    CONFIG_ZENOH_PICO_SHELL_THREAD_PRIORITY,
 		    (unsigned int)CONFIG_ZENOH_PICO_SHELL_THREAD_STACK_SIZE,
 		    (unsigned int)CONFIG_ZENOH_PICO_SHELL_MAX_PAYLOAD,
 		    (unsigned int)CONFIG_ZENOH_PICO_SHELL_MAX_KEYEXPR);
 }
 
-static void zp_zephyr_zenoh_shell_print_info_id_list(
-	const struct shell *sh, const char *label,
-	const struct zp_zephyr_zenoh_shell_id_list_snapshot *list)
+static void
+zp_zephyr_zenoh_shell_print_info_id_list(const struct shell *sh, const char *label,
+					 const struct zp_zephyr_zenoh_shell_id_list_snapshot *list)
 {
 	char line[(ZP_ZEPHYR_ZENOH_SHELL_MAX_INFO_IDS *
-		   (ZP_ZEPHYR_ZENOH_SHELL_MAX_ID_STR_LEN + 2U)) + 4U];
+		   (ZP_ZEPHYR_ZENOH_SHELL_MAX_ID_STR_LEN + 2U)) +
+		  4U];
 	size_t pos = 0U;
 	int rc;
 
@@ -180,8 +174,8 @@ static void zp_zephyr_zenoh_shell_print_info_id_list(
 	pos = (size_t)rc;
 
 	for (uint8_t i = 0U; i < list->count; ++i) {
-		rc = snprintk(&line[pos], sizeof(line) - pos, "%s%s",
-			      i == 0U ? "" : ", ", list->ids[i]);
+		rc = snprintk(&line[pos], sizeof(line) - pos, "%s%s", i == 0U ? "" : ", ",
+			      list->ids[i]);
 		if (rc <= 0) {
 			return;
 		}
@@ -193,8 +187,7 @@ static void zp_zephyr_zenoh_shell_print_info_id_list(
 		return;
 	}
 
-	shell_print(sh, "%s: %s%s", label, line,
-		    list->truncated ? " (truncated)" : "");
+	shell_print(sh, "%s: %s%s", label, line, list->truncated ? " (truncated)" : "");
 }
 
 struct zp_zephyr_zenoh_shell_scout_context {
@@ -202,19 +195,15 @@ struct zp_zephyr_zenoh_shell_scout_context {
 	uint32_t count;
 };
 
-static void zp_zephyr_zenoh_shell_print_sample_summary(const struct shell *sh,
-					    const struct zp_zephyr_zenoh_shell_sample_snapshot *sample,
-					    int64_t age_ms)
+static void zp_zephyr_zenoh_shell_print_sample_summary(
+	const struct shell *sh, const struct zp_zephyr_zenoh_shell_sample_snapshot *sample,
+	int64_t age_ms)
 {
-	shell_print(sh,
-		    "sample rx=%llu truncated=%u kind=%s last_age_ms=%lld key=%s bytes=%zu/%zu",
+	shell_print(sh, "sample rx=%llu truncated=%u kind=%s last_age_ms=%lld key=%s bytes=%zu/%zu",
 		    (unsigned long long)sample->receive_count,
 		    (unsigned int)sample->truncated_count,
-		    zp_zephyr_zenoh_shell_sample_kind_name(sample->sample_kind),
-		    (long long)age_ms,
-		    sample->keyexpr,
-		    sample->payload_stored_len,
-		    sample->payload_len);
+		    zp_zephyr_zenoh_shell_sample_kind_name(sample->sample_kind), (long long)age_ms,
+		    sample->keyexpr, sample->payload_stored_len, sample->payload_len);
 }
 
 static int zp_zephyr_zenoh_shell_parse_format_arg(const char *arg, bool *text_mode)
@@ -237,7 +226,7 @@ static int zp_zephyr_zenoh_shell_parse_format_arg(const char *arg, bool *text_mo
 }
 
 static int zp_zephyr_zenoh_shell_keyexpr_intersects(const char *left, const char *right,
-					 bool *matches)
+						    bool *matches)
 {
 	z_view_keyexpr_t left_view;
 	z_view_keyexpr_t right_view;
@@ -284,7 +273,7 @@ static int zp_zephyr_zenoh_shell_sample_matches_selectors(
 		}
 
 		rc = zp_zephyr_zenoh_shell_keyexpr_intersects(selectors[i], sample->keyexpr,
-						    matches);
+							      matches);
 		if (rc < 0) {
 			return rc;
 		}
@@ -394,19 +383,15 @@ static void zp_zephyr_zenoh_shell_scout_handler(z_loaned_hello_t *hello, void *c
 	(void)z_whatami_to_view_string(z_hello_whatami(hello), &whatami);
 	locators = zp_hello_locators(hello);
 
-	shell_print(scout->sh, "hello[%u] zid=%.*s whatami=%.*s",
-		    (unsigned int)scout->count,
-		    (int)z_string_len(z_loan(zid)),
-		    z_string_data(z_loan(zid)),
-		    (int)z_string_len(z_loan(whatami)),
-		    z_string_data(z_loan(whatami)));
+	shell_print(scout->sh, "hello[%u] zid=%.*s whatami=%.*s", (unsigned int)scout->count,
+		    (int)z_string_len(z_loan(zid)), z_string_data(z_loan(zid)),
+		    (int)z_string_len(z_loan(whatami)), z_string_data(z_loan(whatami)));
 
 	for (size_t i = 0U; i < z_string_array_len(locators); ++i) {
 		const z_loaned_string_t *locator = z_string_array_get(locators, i);
 
 		shell_print(scout->sh, "  locator[%u]=%.*s", (unsigned int)i,
-			    (int)z_string_len(locator),
-			    z_string_data(locator));
+			    (int)z_string_len(locator), z_string_data(locator));
 	}
 
 	scout->count++;
@@ -444,7 +429,7 @@ static bool zp_zephyr_zenoh_shell_watch_stop_if_shell(const struct shell *sh)
 }
 
 static int zp_zephyr_zenoh_shell_watch_start(const struct shell *sh, bool text_mode,
-				  size_t key_count, const char *const *keys)
+					     size_t key_count, const char *const *keys)
 {
 	unsigned int key = irq_lock();
 
@@ -521,26 +506,22 @@ static void zp_zephyr_zenoh_shell_watch_thread(void *p0, void *p1, void *p2)
 				    g_zp_zephyr_zenoh_shell_watch.sh == watch.sh) {
 					g_zp_zephyr_zenoh_shell_watch.last_receive_count =
 						sample.receive_count;
-					watch.text_mode =
-						g_zp_zephyr_zenoh_shell_watch.text_mode;
+					watch.text_mode = g_zp_zephyr_zenoh_shell_watch.text_mode;
 				}
 				irq_unlock(key);
 
 				rc = zp_zephyr_zenoh_shell_sample_matches_selectors(
-					&sample, watch.key_count, selectors,
-					&matches);
+					&sample, watch.key_count, selectors, &matches);
 				if (rc < 0 || !matches) {
 					goto wait_next_sample;
 				}
 
-				shell_print(watch.sh,
-					    "rx=%llu kind=%s key=%s bytes=%zu/%zu",
-					    (unsigned long long)sample.receive_count,
-					    zp_zephyr_zenoh_shell_sample_kind_name(
-						    sample.sample_kind),
-					    sample.keyexpr,
-					    sample.payload_stored_len,
-					    sample.payload_len);
+				shell_print(
+					watch.sh, "rx=%llu kind=%s key=%s bytes=%zu/%zu",
+					(unsigned long long)sample.receive_count,
+					zp_zephyr_zenoh_shell_sample_kind_name(sample.sample_kind),
+					sample.keyexpr, sample.payload_stored_len,
+					sample.payload_len);
 				if (watch.text_mode) {
 					zp_zephyr_zenoh_shell_print_text(watch.sh, &sample);
 				} else {
@@ -598,8 +579,7 @@ static void zp_zephyr_zenoh_shell_scout_work_handler(struct k_work *work)
 		shell_print(job->sh, "no zenoh routers or peers discovered");
 	}
 
-	shell_print(job->sh, "zenoh scout complete count=%u",
-		    (unsigned int)scout.count);
+	shell_print(job->sh, "zenoh scout complete count=%u", (unsigned int)scout.count);
 
 out:
 	atomic_set(&job->busy, 0);
@@ -650,19 +630,13 @@ static int cmd_zenoh_status(const struct shell *sh, size_t argc, char **argv)
 		age_ms = k_uptime_get() - sample.receive_stamp_ms;
 	}
 
-	shell_print(sh,
-		    "state=%s iface_up=%d mode=%s locator=%s keyexpr=%s",
-		    zp_zephyr_zenoh_shell_state_name(status.state),
-		    status.iface_up ? 1 : 0,
-		    CONFIG_ZENOH_PICO_SHELL_MODE,
-		    CONFIG_ZENOH_PICO_SHELL_CONNECT_LOCATOR,
+	shell_print(sh, "state=%s iface_up=%d mode=%s locator=%s keyexpr=%s",
+		    zp_zephyr_zenoh_shell_state_name(status.state), status.iface_up ? 1 : 0,
+		    CONFIG_ZENOH_PICO_SHELL_MODE, CONFIG_ZENOH_PICO_SHELL_CONNECT_LOCATOR,
 		    CONFIG_ZENOH_PICO_SHELL_SUB_KEYEXPR);
-	shell_print(sh,
-		    "session attempts=%u opened=%u failures=%u last_error=%d",
-		    (unsigned int)status.connect_attempts,
-		    (unsigned int)status.sessions_opened,
-		    (unsigned int)status.open_failures,
-		    (int)status.last_error);
+	shell_print(sh, "session attempts=%u opened=%u failures=%u last_error=%d",
+		    (unsigned int)status.connect_attempts, (unsigned int)status.sessions_opened,
+		    (unsigned int)status.open_failures, (int)status.last_error);
 
 	if (!have_sample) {
 		shell_print(sh, "sample rx=0 last_age_ms=-1");
@@ -702,11 +676,8 @@ static int cmd_zenoh_info(const struct shell *sh, size_t argc, char **argv)
 	shell_print(sh,
 		    "sample: rx=%llu kind=%s last_age_ms=%lld key=%s bytes=%zu/%zu truncated=%u",
 		    (unsigned long long)sample.receive_count,
-		    zp_zephyr_zenoh_shell_sample_kind_name(sample.sample_kind),
-		    (long long)age_ms,
-		    sample.keyexpr,
-		    sample.payload_stored_len,
-		    sample.payload_len,
+		    zp_zephyr_zenoh_shell_sample_kind_name(sample.sample_kind), (long long)age_ms,
+		    sample.keyexpr, sample.payload_stored_len, sample.payload_len,
 		    (unsigned int)sample.truncated_count);
 	return 0;
 }
@@ -716,8 +687,7 @@ static int cmd_zenoh_sample(const struct shell *sh, size_t argc, char **argv)
 	struct zp_zephyr_zenoh_shell_sample_snapshot sample = {0};
 	bool text_mode = false;
 
-	if (argc == 2U &&
-	    zp_zephyr_zenoh_shell_parse_format_arg(argv[1], &text_mode) != 0) {
+	if (argc == 2U && zp_zephyr_zenoh_shell_parse_format_arg(argv[1], &text_mode) != 0) {
 		shell_error(sh, "usage: zenoh sample [hex|text]");
 		return -EINVAL;
 	}
@@ -727,15 +697,11 @@ static int cmd_zenoh_sample(const struct shell *sh, size_t argc, char **argv)
 		return -ENOENT;
 	}
 
-	shell_print(sh,
-		    "rx=%llu kind=%s key=%s bytes=%zu/%zu stamp_ms=%lld truncated=%u",
+	shell_print(sh, "rx=%llu kind=%s key=%s bytes=%zu/%zu stamp_ms=%lld truncated=%u",
 		    (unsigned long long)sample.receive_count,
-		    zp_zephyr_zenoh_shell_sample_kind_name(sample.sample_kind),
-		    sample.keyexpr,
-		    sample.payload_stored_len,
-		    sample.payload_len,
-		    (long long)sample.receive_stamp_ms,
-		    (unsigned int)sample.truncated_count);
+		    zp_zephyr_zenoh_shell_sample_kind_name(sample.sample_kind), sample.keyexpr,
+		    sample.payload_stored_len, sample.payload_len,
+		    (long long)sample.receive_stamp_ms, (unsigned int)sample.truncated_count);
 
 	if (text_mode) {
 		zp_zephyr_zenoh_shell_print_text(sh, &sample);
@@ -755,8 +721,7 @@ static int cmd_zenoh_get(const struct shell *sh, size_t argc, char **argv)
 	int rc;
 
 	for (size_t i = 1U; i < argc; ++i) {
-		if ((strcmp(argv[i], "-s") == 0) ||
-		    (strcmp(argv[i], "--selector") == 0)) {
+		if ((strcmp(argv[i], "-s") == 0) || (strcmp(argv[i], "--selector") == 0)) {
 			if ((i + 1U) >= argc) {
 				shell_error(sh, "missing selector after %s", argv[i]);
 				return -EINVAL;
@@ -779,29 +744,24 @@ static int cmd_zenoh_get(const struct shell *sh, size_t argc, char **argv)
 	}
 
 	if (selector != NULL) {
-		rc = zp_zephyr_zenoh_shell_sample_matches_selectors(
-			&sample, 1U, &selector, &matches);
+		rc = zp_zephyr_zenoh_shell_sample_matches_selectors(&sample, 1U, &selector,
+								    &matches);
 		if (rc < 0) {
 			shell_error(sh, "invalid selector: %s", selector);
 			return rc;
 		}
 
 		if (!matches) {
-			shell_error(sh, "no stored zenoh sample matches selector %s",
-				    selector);
+			shell_error(sh, "no stored zenoh sample matches selector %s", selector);
 			return -ENOENT;
 		}
 	}
 
-	shell_print(sh,
-		    "rx=%llu kind=%s key=%s bytes=%zu/%zu stamp_ms=%lld truncated=%u",
+	shell_print(sh, "rx=%llu kind=%s key=%s bytes=%zu/%zu stamp_ms=%lld truncated=%u",
 		    (unsigned long long)sample.receive_count,
-		    zp_zephyr_zenoh_shell_sample_kind_name(sample.sample_kind),
-		    sample.keyexpr,
-		    sample.payload_stored_len,
-		    sample.payload_len,
-		    (long long)sample.receive_stamp_ms,
-		    (unsigned int)sample.truncated_count);
+		    zp_zephyr_zenoh_shell_sample_kind_name(sample.sample_kind), sample.keyexpr,
+		    sample.payload_stored_len, sample.payload_len,
+		    (long long)sample.receive_stamp_ms, (unsigned int)sample.truncated_count);
 
 	if (text_mode) {
 		zp_zephyr_zenoh_shell_print_text(sh, &sample);
@@ -824,16 +784,16 @@ static int cmd_zenoh_scout(const struct shell *sh, size_t argc, char **argv)
 	int rc;
 
 	for (size_t i = 1U; i < argc; ++i) {
-		if ((strcmp(argv[i], "-w") == 0) ||
-		    (strcmp(argv[i], "--what") == 0)) {
+		if ((strcmp(argv[i], "-w") == 0) || (strcmp(argv[i], "--what") == 0)) {
 			if ((i + 1U) >= argc) {
 				shell_error(sh, "missing scout target after %s", argv[i]);
 				return -EINVAL;
 			}
 			rc = zp_zephyr_zenoh_shell_parse_scout_what(argv[++i], &parsed_what);
 			if (rc < 0) {
-				shell_error(sh,
-					    "usage: zenoh scout [-w|--what <peer|router|client[|...]|all>] [-t|--timeout <timeout_ms>]");
+				shell_error(sh, "usage: zenoh scout [-w|--what "
+						"<peer|router|client[|...]|all>] [-t|--timeout "
+						"<timeout_ms>]");
 				return rc;
 			}
 			options.what = parsed_what;
@@ -841,8 +801,7 @@ static int cmd_zenoh_scout(const struct shell *sh, size_t argc, char **argv)
 			continue;
 		}
 
-		if ((strcmp(argv[i], "-t") == 0) ||
-		    (strcmp(argv[i], "--timeout") == 0)) {
+		if ((strcmp(argv[i], "-t") == 0) || (strcmp(argv[i], "--timeout") == 0)) {
 			if ((i + 1U) >= argc) {
 				shell_error(sh, "missing timeout after %s", argv[i]);
 				return -EINVAL;
@@ -864,14 +823,13 @@ static int cmd_zenoh_scout(const struct shell *sh, size_t argc, char **argv)
 			}
 		}
 
-		if (!timeout_set &&
-		    zp_zephyr_zenoh_shell_parse_u32(argv[i], &options.timeout_ms)) {
+		if (!timeout_set && zp_zephyr_zenoh_shell_parse_u32(argv[i], &options.timeout_ms)) {
 			timeout_set = true;
 			continue;
 		}
 
-		shell_error(sh,
-			    "usage: zenoh scout [-w|--what <peer|router|client[|...]|all>] [-t|--timeout <timeout_ms>]");
+		shell_error(sh, "usage: zenoh scout [-w|--what <peer|router|client[|...]|all>] "
+				"[-t|--timeout <timeout_ms>]");
 		return -EINVAL;
 	}
 
@@ -906,8 +864,7 @@ static int cmd_zenoh_subscribe(const struct shell *sh, size_t argc, char **argv)
 	}
 
 	for (size_t i = 1U; i < argc; ++i) {
-		if ((strcmp(argv[i], "-k") == 0) ||
-		    (strcmp(argv[i], "--key") == 0)) {
+		if ((strcmp(argv[i], "-k") == 0) || (strcmp(argv[i], "--key") == 0)) {
 			if ((i + 1U) >= argc) {
 				shell_error(sh, "missing key after %s", argv[i]);
 				return -EINVAL;
@@ -924,8 +881,7 @@ static int cmd_zenoh_subscribe(const struct shell *sh, size_t argc, char **argv)
 			continue;
 		}
 
-		shell_error(sh,
-			    "usage: zenoh subscribe [-k|--key <keyexpr>]... [hex|text|stop]");
+		shell_error(sh, "usage: zenoh subscribe [-k|--key <keyexpr>]... [hex|text|stop]");
 		return -EINVAL;
 	}
 
@@ -943,14 +899,14 @@ static int cmd_zenoh_subscribe(const struct shell *sh, size_t argc, char **argv)
 
 	if (key_count == 0U) {
 		shell_print(sh,
-			    "watching stored zenoh samples for keyexpr=%s as %s; Ctrl-C or 'zenoh subscribe stop' to stop",
-			    CONFIG_ZENOH_PICO_SHELL_SUB_KEYEXPR,
-			    text_mode ? "text" : "hex");
+			    "watching stored zenoh samples for keyexpr=%s as %s; Ctrl-C or 'zenoh "
+			    "subscribe stop' to stop",
+			    CONFIG_ZENOH_PICO_SHELL_SUB_KEYEXPR, text_mode ? "text" : "hex");
 	} else {
 		shell_print(sh,
-			    "watching stored zenoh samples with %u key filter(s) as %s; Ctrl-C or 'zenoh subscribe stop' to stop",
-			    (unsigned int)key_count,
-			    text_mode ? "text" : "hex");
+			    "watching stored zenoh samples with %u key filter(s) as %s; Ctrl-C or "
+			    "'zenoh subscribe stop' to stop",
+			    (unsigned int)key_count, text_mode ? "text" : "hex");
 	}
 
 	return 0;
@@ -977,24 +933,21 @@ static int cmd_zenoh_put(const struct shell *sh, size_t argc, char **argv)
 	int rc;
 
 	if (argc < 2U) {
-		shell_error(sh,
-			    "usage: zenoh put <keyexpr> [payload...] | zenoh put -k <keyexpr> -v <value>");
+		shell_error(sh, "usage: zenoh put <keyexpr> [payload...] | zenoh put -k <keyexpr> "
+				"-v <value>");
 		return -EINVAL;
 	}
 
 	for (size_t i = 1U; i < argc; ++i) {
-		if ((strcmp(argv[i], "-k") == 0) ||
-		    (strcmp(argv[i], "--key") == 0) ||
-		    (strcmp(argv[i], "-v") == 0) ||
-		    (strcmp(argv[i], "--value") == 0)) {
+		if ((strcmp(argv[i], "-k") == 0) || (strcmp(argv[i], "--key") == 0) ||
+		    (strcmp(argv[i], "-v") == 0) || (strcmp(argv[i], "--value") == 0)) {
 			use_flags = true;
 			break;
 		}
 	}
 
 	for (size_t i = 1U; i < argc; ++i) {
-		if ((strcmp(argv[i], "-k") == 0) ||
-		    (strcmp(argv[i], "--key") == 0)) {
+		if ((strcmp(argv[i], "-k") == 0) || (strcmp(argv[i], "--key") == 0)) {
 			if ((i + 1U) >= argc) {
 				shell_error(sh, "missing key after %s", argv[i]);
 				return -EINVAL;
@@ -1004,8 +957,7 @@ static int cmd_zenoh_put(const struct shell *sh, size_t argc, char **argv)
 			continue;
 		}
 
-		if ((strcmp(argv[i], "-v") == 0) ||
-		    (strcmp(argv[i], "--value") == 0)) {
+		if ((strcmp(argv[i], "-v") == 0) || (strcmp(argv[i], "--value") == 0)) {
 			if ((i + 1U) >= argc) {
 				shell_error(sh, "missing value after %s", argv[i]);
 				return -EINVAL;
@@ -1016,14 +968,14 @@ static int cmd_zenoh_put(const struct shell *sh, size_t argc, char **argv)
 		}
 
 		if (use_flags) {
-			shell_error(sh,
-				    "usage: zenoh put <keyexpr> [payload...] | zenoh put -k <keyexpr> -v <value>");
+			shell_error(sh, "usage: zenoh put <keyexpr> [payload...] | zenoh put -k "
+					"<keyexpr> -v <value>");
 			return -EINVAL;
 		}
 
 		if (argv[i][0] == '-') {
-			shell_error(sh,
-				    "usage: zenoh put <keyexpr> [payload...] | zenoh put -k <keyexpr> -v <value>");
+			shell_error(sh, "usage: zenoh put <keyexpr> [payload...] | zenoh put -k "
+					"<keyexpr> -v <value>");
 			return -EINVAL;
 		}
 	}
@@ -1086,14 +1038,13 @@ static int cmd_zenoh_delete(const struct shell *sh, size_t argc, char **argv)
 	int rc;
 
 	if (argc < 2U) {
-		shell_error(sh,
-			    "usage: zenoh delete <keyexpr> | zenoh delete -k <keyexpr> [-k <keyexpr> ...]");
+		shell_error(sh, "usage: zenoh delete <keyexpr> | zenoh delete -k <keyexpr> [-k "
+				"<keyexpr> ...]");
 		return -EINVAL;
 	}
 
 	for (size_t i = 1U; i < argc; ++i) {
-		if ((strcmp(argv[i], "-k") == 0) ||
-		    (strcmp(argv[i], "--key") == 0)) {
+		if ((strcmp(argv[i], "-k") == 0) || (strcmp(argv[i], "--key") == 0)) {
 			if ((i + 1U) >= argc) {
 				shell_error(sh, "missing key after %s", argv[i]);
 				return -EINVAL;
@@ -1108,14 +1059,14 @@ static int cmd_zenoh_delete(const struct shell *sh, size_t argc, char **argv)
 		}
 
 		if (argv[i][0] == '-') {
-			shell_error(sh,
-				    "usage: zenoh delete <keyexpr> | zenoh delete -k <keyexpr> [-k <keyexpr> ...]");
+			shell_error(sh, "usage: zenoh delete <keyexpr> | zenoh delete -k <keyexpr> "
+					"[-k <keyexpr> ...]");
 			return -EINVAL;
 		}
 
 		if (use_flags) {
-			shell_error(sh,
-				    "usage: zenoh delete <keyexpr> | zenoh delete -k <keyexpr> [-k <keyexpr> ...]");
+			shell_error(sh, "usage: zenoh delete <keyexpr> | zenoh delete -k <keyexpr> "
+					"[-k <keyexpr> ...]");
 			return -EINVAL;
 		}
 
@@ -1123,8 +1074,8 @@ static int cmd_zenoh_delete(const struct shell *sh, size_t argc, char **argv)
 	}
 
 	if (key_count == 0U) {
-		shell_error(sh,
-			    "usage: zenoh delete <keyexpr> | zenoh delete -k <keyexpr> [-k <keyexpr> ...]");
+		shell_error(sh, "usage: zenoh delete <keyexpr> | zenoh delete -k <keyexpr> [-k "
+				"<keyexpr> ...]");
 		return -EINVAL;
 	}
 
@@ -1143,32 +1094,33 @@ static int cmd_zenoh_delete(const struct shell *sh, size_t argc, char **argv)
 SYS_INIT(zp_zephyr_zenoh_shell_shell_init, APPLICATION, 0);
 
 SHELL_STATIC_SUBCMD_SET_CREATE(
-	sub_zenoh,
-	SHELL_CMD(config, NULL, "show zenoh session configuration",
-		  cmd_zenoh_config),
-	SHELL_CMD(status, NULL, "show stored zenoh listener status",
-		  cmd_zenoh_status),
+	sub_zenoh, SHELL_CMD(config, NULL, "show zenoh session configuration", cmd_zenoh_config),
+	SHELL_CMD(status, NULL, "show stored zenoh listener status", cmd_zenoh_status),
 	SHELL_CMD(info, NULL, "show stored zenoh session identity and sample state",
 		  cmd_zenoh_info),
 	SHELL_CMD_ARG(sample, NULL,
 		      "show the latest received zenoh sample: zenoh sample [hex|text]",
 		      cmd_zenoh_sample, 1, 1),
 	SHELL_CMD_ARG(get, NULL,
-		      "show the latest stored sample from the resident subscriber: zenoh get [-s|--selector <selector>] [hex|text]",
+		      "show the latest stored sample from the resident subscriber: zenoh get "
+		      "[-s|--selector <selector>] [hex|text]",
 		      cmd_zenoh_get, 1, CONFIG_SHELL_ARGC_MAX - 1),
 	SHELL_CMD_ARG(scout, NULL,
-		      "actively discover zenoh routers/peers: zenoh scout [-w|--what <peer|router|client[|...]|all>] [-t|--timeout <timeout_ms>]",
+		      "actively discover zenoh routers/peers: zenoh scout [-w|--what "
+		      "<peer|router|client[|...]|all>] [-t|--timeout <timeout_ms>]",
 		      cmd_zenoh_scout, 1, CONFIG_SHELL_ARGC_MAX - 1),
 	SHELL_CMD_ARG(subscribe, NULL,
-		      "tail stored samples from the resident subscriber: zenoh subscribe [-k|--key <keyexpr>]... [hex|text|stop]",
+		      "tail stored samples from the resident subscriber: zenoh subscribe [-k|--key "
+		      "<keyexpr>]... [hex|text|stop]",
 		      cmd_zenoh_subscribe, 1, CONFIG_SHELL_ARGC_MAX - 1),
-	SHELL_CMD(clear, NULL, "clear the stored latest zenoh sample",
-		  cmd_zenoh_clear),
+	SHELL_CMD(clear, NULL, "clear the stored latest zenoh sample", cmd_zenoh_clear),
 	SHELL_CMD_ARG(put, NULL,
-		      "publish a debug UTF-8 sample: zenoh put <keyexpr> [payload...] | zenoh put -k <keyexpr> -v <value>",
+		      "publish a debug UTF-8 sample: zenoh put <keyexpr> [payload...] | zenoh put "
+		      "-k <keyexpr> -v <value>",
 		      cmd_zenoh_put, 2, CONFIG_SHELL_ARGC_MAX - 2),
 	SHELL_CMD_ARG(delete, NULL,
-		      "publish a debug delete sample: zenoh delete <keyexpr> | zenoh delete -k <keyexpr> [-k <keyexpr> ...]",
+		      "publish a debug delete sample: zenoh delete <keyexpr> | zenoh delete -k "
+		      "<keyexpr> [-k <keyexpr> ...]",
 		      cmd_zenoh_delete, 2, CONFIG_SHELL_ARGC_MAX - 2),
 	SHELL_SUBCMD_SET_END);
 SHELL_CMD_REGISTER(zenoh, &sub_zenoh, "zenoh over Ethernet commands", NULL);
