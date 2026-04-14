@@ -41,6 +41,13 @@ file(GLOB_RECURSE Sources
 )
 
 file (GLOB Sources_Zephyr "../src/system/zephyr/*.c")
+list(FILTER Sources_Zephyr EXCLUDE REGEX ".*/zenoh_pico_shell(_backend)?\\.c$")
+if(CONFIG_ZENOH_PICO_SHELL)
+  list(APPEND Sources_Zephyr
+    "../src/system/zephyr/zenoh_pico_shell.c"
+    "../src/system/zephyr/zenoh_pico_shell_backend.c"
+  )
+endif()
 list(APPEND Sources ${Sources_Zephyr})
 zephyr_library_sources(${Sources})
 endif()

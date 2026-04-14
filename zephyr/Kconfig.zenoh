@@ -3,6 +3,25 @@ config ZENOH_PICO
 	help
 	  Enable Zenoh pico support
 
+config ZENOH_PICO_SHELL
+	bool "Zephyr retained-subscriber shell"
+	depends on SHELL
+	depends on NETWORKING
+	depends on NET_UDP
+	depends on POSIX_API
+	select ZENOH_PICO
+	select ZENOH_PICO_MULTI_THREAD
+	select ZENOH_PICO_PUBLICATION
+	select ZENOH_PICO_SUBSCRIPTION
+	select ZENOH_PICO_SCOUTING
+	select ZENOH_PICO_LINK_UDP_MULTICAST
+	select ZENOH_PICO_LINK_UDP_UNICAST
+	help
+	  Enable a Zephyr-resident zenoh-pico shell that owns a low-priority
+	  subscriber thread, stores the latest received sample in a bounded
+	  snapshot, and exposes operator shell commands for bring-up and
+	  diagnostics.
+
 if ZENOH_PICO
 
 config ZENOH_PICO_LINK_SERIAL
@@ -65,5 +84,67 @@ config ZENOH_PICO_LINK_WS
 	help
 	  WS Link
 
+if ZENOH_PICO_SHELL
+
+config ZENOH_PICO_SHELL_MODE
+	string "Zenoh mode"
+	default "client"
+	help
+	  Zenoh session mode. Use "client" for a zenoh router or "peer" to
+	  listen directly on a UDP locator.
+
+config ZENOH_PICO_SHELL_CONNECT_LOCATOR
+	string "Zenoh connect/listen locator"
+	default "udp/192.0.2.2:7447"
+	help
+	  Locator passed to zenoh-pico. In client mode this is the router
+	  connect locator; in peer mode this is the local listen locator.
+
+config ZENOH_PICO_SHELL_SUB_KEYEXPR
+	string "Zenoh subscription key expression"
+	default "**"
+	help
+	  Key expression to subscribe to. The default listens to all samples so
+	  Ethernet and zenoh bring-up can be validated before narrowing the
+	  stream to a specific topic.
+
+config ZENOH_PICO_SHELL_THREAD_PRIORITY
+	int "Zenoh supervisor thread priority"
+	default 5
+	help
+	  Low-priority thread that owns zenoh session bring-up and reconnect.
+
+config ZENOH_PICO_SHELL_THREAD_STACK_SIZE
+	int "Zenoh supervisor thread stack size"
+	default 4096
+	help
+	  Stack size for the zenoh supervisor thread.
+
+config ZENOH_PICO_SHELL_RETRY_MS
+	int "Zenoh reconnect period in milliseconds"
+	range 100 10000
+	default 1000
+	help
+	  Delay between connect or reconnect attempts after a failure or closed
+	  session.
+
+config ZENOH_PICO_SHELL_MAX_PAYLOAD
+	int "Maximum stored zenoh payload bytes"
+	range 64 4096
+	default 512
+	help
+	  Size of the fixed buffer used to retain the latest received payload.
+	  Larger samples are truncated in storage but their true length is still
+	  reported by the shell.
+
+config ZENOH_PICO_SHELL_MAX_KEYEXPR
+	int "Maximum stored zenoh keyexpr bytes"
+	range 16 256
+	default 96
+	help
+	  Size of the fixed buffer used to retain the latest received key
+	  expression for shell inspection.
+
 endif
 
+endif
