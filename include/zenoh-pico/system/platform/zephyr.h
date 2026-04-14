@@ -27,6 +27,7 @@
 #endif
 
 #include <pthread.h>
+#include <stdbool.h>
 
 #include "zenoh-pico/config.h"
 
@@ -54,6 +55,11 @@ typedef struct {
         const struct device *_serial;
 #endif
     };
+#if Z_FEATURE_LINK_TCP == 1 || Z_FEATURE_LINK_UDP_MULTICAST == 1 || Z_FEATURE_LINK_UDP_UNICAST == 1
+    uint32_t _recv_timeout_ms;
+    bool _recv_non_blocking;
+    bool _recv_wait_before_read;
+#endif
 } _z_sys_net_socket_t;
 
 typedef struct {

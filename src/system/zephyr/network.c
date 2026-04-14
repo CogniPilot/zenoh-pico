@@ -20,6 +20,7 @@
 #include <zephyr/drivers/uart.h>
 #endif
 
+#include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
 #include <stdbool.h>
@@ -52,10 +53,61 @@ z_result_t _z_socket_set_non_blocking(const _z_sys_net_socket_t *sock) {
     return _Z_RES_OK;
 }
 
+static z_result_t _z_socket_set_recv_timeout_or_non_blocking(_z_sys_net_socket_t *sock, uint32_t tout) {
+    z_time_t tv;
+
+    sock->_recv_timeout_ms = tout;
+    sock->_recv_non_blocking = false;
+    sock->_recv_wait_before_read = false;
+    tv.tv_sec = tout / (uint32_t)1000;
+    tv.tv_usec = (tout % (uint32_t)1000) * (uint32_t)1000;
+    if (setsockopt(sock->_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(tv)) < 0) {
+        // Zephyr can reject SO_RCVTIMEO on sockets that still support select().
+        // Fall back to a select()-guarded blocking recv path instead of hanging forever.
+        sock->_recv_wait_before_read = true;
+    }
+
+    return _Z_RES_OK;
+}
+
+static void _z_socket_set_recv_timeout_best_effort(_z_sys_net_socket_t *sock, uint32_t tout) {
+    z_time_t tv;
+
+    sock->_recv_timeout_ms = tout;
+    sock->_recv_non_blocking = false;
+    sock->_recv_wait_before_read = false;
+    tv.tv_sec = tout / (uint32_t)1000;
+    tv.tv_usec = (tout % (uint32_t)1000) * (uint32_t)1000;
+    if (setsockopt(sock->_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(tv)) < 0) {
+        sock->_recv_wait_before_read = true;
+    }
+}
+
+static bool _z_socket_wait_readable_with_timeout(const _z_sys_net_socket_t *sock) {
+    fd_set read_fds;
+    struct timeval timeout;
+    int result;
+
+    if (sock == NULL || sock->_fd < 0 || !sock->_recv_wait_before_read) {
+        return false;
+    }
+
+    FD_ZERO(&read_fds);
+    FD_SET(sock->_fd, &read_fds);
+    timeout.tv_sec = sock->_recv_timeout_ms / (uint32_t)1000;
+    timeout.tv_usec = (sock->_recv_timeout_ms % (uint32_t)1000) * (uint32_t)1000;
+
+    result = select(sock->_fd + 1, &read_fds, NULL, NULL, &timeout);
+    return result > 0 && FD_ISSET(sock->_fd, &read_fds);
+}
+
 z_result_t _z_socket_accept(const _z_sys_net_socket_t *sock_in, _z_sys_net_socket_t *sock_out) {
     struct sockaddr naddr;
     unsigned int nlen = sizeof(naddr);
     sock_out->_fd = -1;
+    sock_out->_recv_timeout_ms = Z_CONFIG_SOCKET_TIMEOUT;
+    sock_out->_recv_non_blocking = false;
+    sock_out->_recv_wait_before_read = false;
     int con_socket = accept(sock_in->_fd, &naddr, &nlen);
     if (con_socket < 0) {
         _Z_ERROR_RETURN(_Z_ERR_GENERIC);
@@ -244,14 +296,7 @@ z_result_t _z_open_tcp(_z_sys_net_socket_t *sock, const _z_sys_net_endpoint_t re
 
     sock->_fd = socket(rep._iptcp->ai_family, rep._iptcp->ai_socktype, rep._iptcp->ai_protocol);
     if (sock->_fd != -1) {
-        z_time_t tv;
-        tv.tv_sec = tout / (uint32_t)1000;
-        tv.tv_usec = (tout % (uint32_t)1000) * (uint32_t)1000;
-        if ((ret == _Z_RES_OK) && (setsockopt(sock->_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(tv)) < 0)) {
-            // FIXME: setting the setsockopt is consistently failing. Commenting it
-            _Z_ERROR_LOG(_Z_ERR_GENERIC);
-            // until further inspection. ret = _Z_ERR_GENERIC;
-        }
+        _z_socket_set_recv_timeout_best_effort(sock, tout);
 
 #if Z_FEATURE_TCP_NODELAY == 1
         int optflag = 1;
@@ -353,7 +398,15 @@ void _z_close_tcp(_z_sys_net_socket_t *sock) {
 }
 
 size_t _z_read_tcp(const _z_sys_net_socket_t sock, uint8_t *ptr, size_t len) {
+    if (sock._recv_wait_before_read && !_z_socket_wait_readable_with_timeout(&sock)) {
+        return SIZE_MAX;
+    }
     ssize_t rb = recv(sock._fd, ptr, len, 0);
+    if (rb < (ssize_t)0 && sock._recv_non_blocking &&
+        (errno == EAGAIN || errno == EWOULDBLOCK) &&
+        _z_socket_wait_readable_with_timeout(&sock)) {
+        rb = recv(sock._fd, ptr, len, 0);
+    }
     if (rb < (ssize_t)0) {
         rb = SIZE_MAX;
     }
@@ -413,14 +466,7 @@ z_result_t _z_open_udp_unicast(_z_sys_net_socket_t *sock, const _z_sys_net_endpo
 
     sock->_fd = socket(rep._iptcp->ai_family, rep._iptcp->ai_socktype, rep._iptcp->ai_protocol);
     if (sock->_fd != -1) {
-        z_time_t tv;
-        tv.tv_sec = tout / (uint32_t)1000;
-        tv.tv_usec = (tout % (uint32_t)1000) * (uint32_t)1000;
-        if ((ret == _Z_RES_OK) && (setsockopt(sock->_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(tv)) < 0)) {
-            // FIXME: setting the setsockopt is consistently failing. Commenting it
-            _Z_ERROR_LOG(_Z_ERR_GENERIC);
-            // until further inspection. ret = _Z_ERR_GENERIC;
-        }
+        _z_socket_set_recv_timeout_best_effort(sock, tout);
 
         if (ret != _Z_RES_OK) {
             close(sock->_fd);
@@ -458,7 +504,15 @@ size_t _z_read_udp_unicast(const _z_sys_net_socket_t sock, uint8_t *ptr, size_t 
     struct sockaddr_storage raddr;
     unsigned int addrlen = sizeof(struct sockaddr_storage);
 
+    if (sock._recv_wait_before_read && !_z_socket_wait_readable_with_timeout(&sock)) {
+        return SIZE_MAX;
+    }
     ssize_t rb = recvfrom(sock._fd, ptr, len, 0, (struct sockaddr *)&raddr, &addrlen);
+    if (rb < (ssize_t)0 && sock._recv_non_blocking &&
+        (errno == EAGAIN || errno == EWOULDBLOCK) &&
+        _z_socket_wait_readable_with_timeout(&sock)) {
+        rb = recvfrom(sock._fd, ptr, len, 0, (struct sockaddr *)&raddr, &addrlen);
+    }
     if (rb < (ssize_t)0) {
         rb = SIZE_MAX;
     }
@@ -534,13 +588,8 @@ z_result_t _z_open_udp_multicast(_z_sys_net_socket_t *sock, const _z_sys_net_end
     if (addrlen != 0U) {
         sock->_fd = socket(rep._iptcp->ai_family, rep._iptcp->ai_socktype, rep._iptcp->ai_protocol);
         if (sock->_fd != -1) {
-            z_time_t tv;
-            tv.tv_sec = tout / (uint32_t)1000;
-            tv.tv_usec = (tout % (uint32_t)1000) * (uint32_t)1000;
-            if ((ret == _Z_RES_OK) && (setsockopt(sock->_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(tv)) < 0)) {
-                // FIXME: setting the setsockopt is consistently failing. Commenting it
-                _Z_ERROR_LOG(_Z_ERR_GENERIC);
-                // until further inspection. ret = _Z_ERR_GENERIC;
+            if (ret == _Z_RES_OK) {
+                ret = _z_socket_set_recv_timeout_or_non_blocking(sock, tout);
             }
 
             if ((ret == _Z_RES_OK) && (bind(sock->_fd, lsockaddr, addrlen) < 0)) {
@@ -643,13 +692,8 @@ z_result_t _z_listen_udp_multicast(_z_sys_net_socket_t *sock, const _z_sys_net_e
             ret = _Z_ERR_GENERIC;
         }
 
-        z_time_t tv;
-        tv.tv_sec = tout / (uint32_t)1000;
-        tv.tv_usec = (tout % (uint32_t)1000) * (uint32_t)1000;
-        if ((ret == _Z_RES_OK) && (setsockopt(sock->_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(tv)) < 0)) {
-            // FIXME: setting the setsockopt is consistently failing. Commenting it
-            _Z_ERROR_LOG(_Z_ERR_GENERIC);
-            // until further inspection. ret = _Z_ERR_GENERIC;
+        if (ret == _Z_RES_OK) {
+            ret = _z_socket_set_recv_timeout_or_non_blocking(sock, tout);
         }
 
         if ((ret == _Z_RES_OK) && (bind(sock->_fd, lsockaddr, addrlen) < 0)) {
@@ -659,7 +703,7 @@ z_result_t _z_listen_udp_multicast(_z_sys_net_socket_t *sock, const _z_sys_net_e
 
         // FIXME: iface passed into the locator is being ignored
         //        default if used instead
-        if (ret != _Z_RES_OK) {
+        if (ret == _Z_RES_OK) {
             struct net_if *ifa = NULL;
             ifa = net_if_get_default();
             if (ifa != NULL) {
@@ -676,7 +720,9 @@ z_result_t _z_listen_udp_multicast(_z_sys_net_socket_t *sock, const _z_sys_net_e
 #else
                     net_if_ipv4_maddr_join(mcast);
 #endif
-                } else if (rep._iptcp->ai_family == AF_INET6) {
+                }
+#if defined(CONFIG_NET_IPV6)
+                else if (rep._iptcp->ai_family == AF_INET6) {
                     struct net_if_mcast_addr *mcast = NULL;
                     mcast = net_if_ipv6_maddr_add(ifa, &((struct sockaddr_in6 *)rep._iptcp->ai_addr)->sin6_addr);
                     if (!mcast) {
@@ -688,7 +734,9 @@ z_result_t _z_listen_udp_multicast(_z_sys_net_socket_t *sock, const _z_sys_net_e
 #else
                     net_if_ipv6_maddr_join(mcast);
 #endif
-                } else {
+                }
+#endif
+                else {
                     _Z_ERROR_LOG(_Z_ERR_GENERIC);
                     ret = _Z_ERR_GENERIC;
                 }
@@ -734,7 +782,9 @@ void _z_close_udp_multicast(_z_sys_net_socket_t *sockrecv, _z_sys_net_socket_t *
                 } else {
                     // Do nothing. The socket will be closed in any case.
                 }
-            } else if (rep._iptcp->ai_family == AF_INET6) {
+            }
+#if defined(CONFIG_NET_IPV6)
+            else if (rep._iptcp->ai_family == AF_INET6) {
                 mcast = net_if_ipv6_maddr_add(ifa, &((struct sockaddr_in6 *)rep._iptcp->ai_addr)->sin6_addr);
                 if (mcast != NULL) {
 #if KERNEL_VERSION_MAJOR == 3 && KERNEL_VERSION_MINOR > 3 || KERNEL_VERSION_MAJOR >= 4
@@ -746,7 +796,9 @@ void _z_close_udp_multicast(_z_sys_net_socket_t *sockrecv, _z_sys_net_socket_t *
                 } else {
                     // Do nothing. The socket will be closed in any case.
                 }
-            } else {
+            }
+#endif
+            else {
                 // Do nothing. It must never not enter here.
                 // Required to be compliant with MISRA 15.7 rule
             }
@@ -770,7 +822,16 @@ size_t _z_read_udp_multicast(const _z_sys_net_socket_t sock, uint8_t *ptr, size_
 
     ssize_t rb = 0;
     do {
+        if (sock._recv_wait_before_read && !_z_socket_wait_readable_with_timeout(&sock)) {
+            rb = SIZE_MAX;
+            break;
+        }
         rb = recvfrom(sock._fd, ptr, len, 0, (struct sockaddr *)&raddr, &raddrlen);
+        if (rb < (ssize_t)0 && sock._recv_non_blocking &&
+            (errno == EAGAIN || errno == EWOULDBLOCK) &&
+            _z_socket_wait_readable_with_timeout(&sock)) {
+            rb = recvfrom(sock._fd, ptr, len, 0, (struct sockaddr *)&raddr, &raddrlen);
+        }
         if (rb < (ssize_t)0) {
             rb = SIZE_MAX;
             break;

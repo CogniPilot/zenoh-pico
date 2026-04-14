@@ -59,7 +59,7 @@ void z_free(void *ptr) { k_free(ptr); }
 
 #if Z_FEATURE_MULTI_THREAD == 1
 
-#define Z_THREADS_NUM 4
+#define Z_THREADS_NUM 8
 
 #ifdef CONFIG_TEST_EXTRA_STACK_SIZE
 #define Z_PTHREAD_STACK_SIZE_DEFAULT CONFIG_MAIN_STACK_SIZE + CONFIG_TEST_EXTRA_STACK_SIZE
@@ -70,15 +70,16 @@ void z_free(void *ptr) { k_free(ptr); }
 #endif
 
 K_THREAD_STACK_ARRAY_DEFINE(thread_stack_area, Z_THREADS_NUM, Z_PTHREAD_STACK_SIZE_DEFAULT);
-static int thread_index = 0;
+static atomic_t thread_index;
 
 /*------------------ Task ------------------*/
 z_result_t _z_task_init(_z_task_t *task, z_task_attr_t *attr, void *(*fun)(void *), void *arg) {
     z_task_attr_t *lattr = NULL;
     z_task_attr_t tmp;
     if (attr == NULL) {
+        unsigned int slot = (unsigned int)atomic_inc(&thread_index) % Z_THREADS_NUM;
         (void)pthread_attr_init(&tmp);
-        (void)pthread_attr_setstack(&tmp, &thread_stack_area[thread_index++], Z_PTHREAD_STACK_SIZE_DEFAULT);
+        (void)pthread_attr_setstack(&tmp, &thread_stack_area[slot], Z_PTHREAD_STACK_SIZE_DEFAULT);
         lattr = &tmp;
     }
 
