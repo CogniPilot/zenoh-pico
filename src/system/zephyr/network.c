@@ -817,8 +817,12 @@ void _z_close_udp_multicast(_z_sys_net_socket_t *sockrecv, _z_sys_net_socket_t *
 
 size_t _z_read_udp_multicast(const _z_sys_net_socket_t sock, uint8_t *ptr, size_t len, const _z_sys_net_endpoint_t lep,
                              _z_slice_t *addr) {
-    struct sockaddr_storage raddr;
-    unsigned int raddrlen = sizeof(struct sockaddr_storage);
+    union {
+        struct sockaddr sa;
+        struct sockaddr_in in4;
+        struct sockaddr_in6 in6;
+    } raddr = {0};
+    socklen_t raddrlen = sizeof(raddr);
 
     ssize_t rb = 0;
     do {
@@ -826,11 +830,11 @@ size_t _z_read_udp_multicast(const _z_sys_net_socket_t sock, uint8_t *ptr, size_
             rb = SIZE_MAX;
             break;
         }
-        rb = recvfrom(sock._fd, ptr, len, 0, (struct sockaddr *)&raddr, &raddrlen);
+        rb = recvfrom(sock._fd, ptr, len, 0, &raddr.sa, &raddrlen);
         if (rb < (ssize_t)0 && sock._recv_non_blocking &&
             (errno == EAGAIN || errno == EWOULDBLOCK) &&
             _z_socket_wait_readable_with_timeout(&sock)) {
-            rb = recvfrom(sock._fd, ptr, len, 0, (struct sockaddr *)&raddr, &raddrlen);
+            rb = recvfrom(sock._fd, ptr, len, 0, &raddr.sa, &raddrlen);
         }
         if (rb < (ssize_t)0) {
             rb = SIZE_MAX;
@@ -838,29 +842,31 @@ size_t _z_read_udp_multicast(const _z_sys_net_socket_t sock, uint8_t *ptr, size_
         }
 
         if (lep._iptcp->ai_family == AF_INET) {
-            struct sockaddr_in *a = ((struct sockaddr_in *)lep._iptcp->ai_addr);
-            struct sockaddr_in *b = ((struct sockaddr_in *)&raddr);
+            const struct sockaddr_in *a = (const struct sockaddr_in *)lep._iptcp->ai_addr;
+            const struct sockaddr_in *b = &raddr.in4;
             if (!((a->sin_port == b->sin_port) && (a->sin_addr.s_addr == b->sin_addr.s_addr))) {
                 // If addr is not NULL, it means that the raddr was requested by the
                 // upper-layers
                 if (addr != NULL) {
-                    addr->len = sizeof(uint32_t) + sizeof(uint16_t);
-                    (void)memcpy((uint8_t *)addr->start, &b->sin_addr.s_addr, sizeof(uint32_t));
-                    (void)memcpy((uint8_t *)(addr->start + sizeof(uint32_t)), &b->sin_port, sizeof(uint16_t));
+                    addr->len = sizeof(b->sin_addr.s_addr) + sizeof(b->sin_port);
+                    (void)memcpy((uint8_t *)addr->start, &b->sin_addr.s_addr, sizeof(b->sin_addr.s_addr));
+                    (void)memcpy((uint8_t *)(addr->start + sizeof(b->sin_addr.s_addr)), &b->sin_port,
+                                 sizeof(b->sin_port));
                 }
                 break;
             }
         } else if (lep._iptcp->ai_family == AF_INET6) {
-            struct sockaddr_in6 *a = ((struct sockaddr_in6 *)lep._iptcp->ai_addr);
-            struct sockaddr_in6 *b = ((struct sockaddr_in6 *)&raddr);
+            const struct sockaddr_in6 *a = (const struct sockaddr_in6 *)lep._iptcp->ai_addr;
+            const struct sockaddr_in6 *b = &raddr.in6;
             if (!((a->sin6_port == b->sin6_port) &&
-                  (memcmp(a->sin6_addr.s6_addr, b->sin6_addr.s6_addr, sizeof(uint32_t) * 4UL) == 0))) {
+                  (memcmp(&a->sin6_addr, &b->sin6_addr, sizeof(b->sin6_addr)) == 0))) {
                 // If addr is not NULL, it means that the raddr was requested by the
                 // upper-layers
                 if (addr != NULL) {
-                    addr->len = (sizeof(uint32_t) * 4UL) + sizeof(uint16_t);
-                    (void)memcpy((uint8_t *)addr->start, &b->sin6_addr.s6_addr, sizeof(uint32_t) * 4UL);
-                    (void)memcpy((uint8_t *)(addr->start + (sizeof(uint32_t) * 4UL)), &b->sin6_port, sizeof(uint16_t));
+                    addr->len = sizeof(b->sin6_addr) + sizeof(b->sin6_port);
+                    (void)memcpy((uint8_t *)addr->start, &b->sin6_addr, sizeof(b->sin6_addr));
+                    (void)memcpy((uint8_t *)(addr->start + sizeof(b->sin6_addr)), &b->sin6_port,
+                                 sizeof(b->sin6_port));
                 }
                 break;
             }
