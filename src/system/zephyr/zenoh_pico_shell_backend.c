@@ -9,13 +9,48 @@
 #include <zephyr/init.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#if !defined(CONFIG_BOARD_NATIVE_SIM)
 #include <zephyr/net/net_if.h>
+#else
+#include <pthread.h>
+#endif
 #include <zephyr/sys/atomic.h>
 #include <zephyr/sys/util.h>
 
 #include <zenoh-pico.h>
 
 LOG_MODULE_REGISTER(zp_zephyr_zenoh_shell, LOG_LEVEL_INF);
+
+#if defined(CONFIG_BOARD_NATIVE_SIM)
+typedef pthread_mutex_t zp_zephyr_zenoh_shell_mutex_t;
+
+#define ZP_ZEPHYR_ZENOH_SHELL_MUTEX_DEFINE(name) \
+	static zp_zephyr_zenoh_shell_mutex_t name = PTHREAD_MUTEX_INITIALIZER
+
+static void zp_zephyr_zenoh_shell_mutex_lock(zp_zephyr_zenoh_shell_mutex_t *mutex)
+{
+	(void)pthread_mutex_lock(mutex);
+}
+
+static void zp_zephyr_zenoh_shell_mutex_unlock(zp_zephyr_zenoh_shell_mutex_t *mutex)
+{
+	(void)pthread_mutex_unlock(mutex);
+}
+#else
+typedef struct k_mutex zp_zephyr_zenoh_shell_mutex_t;
+
+#define ZP_ZEPHYR_ZENOH_SHELL_MUTEX_DEFINE(name) K_MUTEX_DEFINE(name)
+
+static void zp_zephyr_zenoh_shell_mutex_lock(zp_zephyr_zenoh_shell_mutex_t *mutex)
+{
+	k_mutex_lock(mutex, K_FOREVER);
+}
+
+static void zp_zephyr_zenoh_shell_mutex_unlock(zp_zephyr_zenoh_shell_mutex_t *mutex)
+{
+	k_mutex_unlock(mutex);
+}
+#endif
 
 struct zp_zephyr_zenoh_shell_sample_store {
 	struct zp_zephyr_zenoh_shell_sample_snapshot slots[2];
@@ -37,9 +72,9 @@ static struct zp_zephyr_zenoh_shell_info_store g_zp_zephyr_zenoh_shell_info;
 static K_THREAD_STACK_DEFINE(g_zp_zephyr_zenoh_shell_thread_stack,
 			     CONFIG_ZENOH_PICO_SHELL_THREAD_STACK_SIZE);
 static struct k_thread g_zp_zephyr_zenoh_shell_thread;
-K_MUTEX_DEFINE(g_zp_zephyr_zenoh_shell_store_lock);
-K_MUTEX_DEFINE(g_zp_zephyr_zenoh_shell_info_lock);
-K_MUTEX_DEFINE(g_zp_zephyr_zenoh_shell_pub_lock);
+ZP_ZEPHYR_ZENOH_SHELL_MUTEX_DEFINE(g_zp_zephyr_zenoh_shell_store_lock);
+ZP_ZEPHYR_ZENOH_SHELL_MUTEX_DEFINE(g_zp_zephyr_zenoh_shell_info_lock);
+ZP_ZEPHYR_ZENOH_SHELL_MUTEX_DEFINE(g_zp_zephyr_zenoh_shell_pub_lock);
 static atomic_t g_zp_zephyr_zenoh_shell_state;
 static atomic_t g_zp_zephyr_zenoh_shell_last_error;
 static atomic_t g_zp_zephyr_zenoh_shell_connect_attempts;
@@ -62,9 +97,9 @@ static void zp_zephyr_zenoh_shell_info_clear_locked(void)
 
 static void zp_zephyr_zenoh_shell_info_clear(void)
 {
-	k_mutex_lock(&g_zp_zephyr_zenoh_shell_info_lock, K_FOREVER);
+	zp_zephyr_zenoh_shell_mutex_lock(&g_zp_zephyr_zenoh_shell_info_lock);
 	zp_zephyr_zenoh_shell_info_clear_locked();
-	k_mutex_unlock(&g_zp_zephyr_zenoh_shell_info_lock);
+	zp_zephyr_zenoh_shell_mutex_unlock(&g_zp_zephyr_zenoh_shell_info_lock);
 }
 
 static void zp_zephyr_zenoh_shell_id_list_store(struct zp_zephyr_zenoh_shell_id_list_snapshot *list,
@@ -157,9 +192,9 @@ static void zp_zephyr_zenoh_shell_info_capture(const z_loaned_session_t *session
 		(void)z_info_peers_zid(session, z_move(callback));
 	}
 
-	k_mutex_lock(&g_zp_zephyr_zenoh_shell_info_lock, K_FOREVER);
+	zp_zephyr_zenoh_shell_mutex_lock(&g_zp_zephyr_zenoh_shell_info_lock);
 	g_zp_zephyr_zenoh_shell_info = next;
-	k_mutex_unlock(&g_zp_zephyr_zenoh_shell_info_lock);
+	zp_zephyr_zenoh_shell_mutex_unlock(&g_zp_zephyr_zenoh_shell_info_lock);
 }
 
 static void zp_zephyr_zenoh_shell_store_publish(z_loaned_sample_t *sample)
@@ -173,7 +208,7 @@ static void zp_zephyr_zenoh_shell_store_publish(z_loaned_sample_t *sample)
 	uint32_t next_generation;
 	uint32_t slot_index;
 
-	k_mutex_lock(&g_zp_zephyr_zenoh_shell_store_lock, K_FOREVER);
+	zp_zephyr_zenoh_shell_mutex_lock(&g_zp_zephyr_zenoh_shell_store_lock);
 	next_generation = (uint32_t)atomic_get(&g_zp_zephyr_zenoh_shell_store.generation) + 1U;
 	slot_index = next_generation & 1U;
 	slot = &g_zp_zephyr_zenoh_shell_store.slots[slot_index];
@@ -203,7 +238,7 @@ static void zp_zephyr_zenoh_shell_store_publish(z_loaned_sample_t *sample)
 	slot->sample_kind = (uint8_t)z_sample_kind(sample);
 
 	atomic_set(&g_zp_zephyr_zenoh_shell_store.generation, (atomic_val_t)next_generation);
-	k_mutex_unlock(&g_zp_zephyr_zenoh_shell_store_lock);
+	zp_zephyr_zenoh_shell_mutex_unlock(&g_zp_zephyr_zenoh_shell_store_lock);
 }
 
 static void zp_zephyr_zenoh_shell_data_handler(z_loaned_sample_t *sample, void *arg)
@@ -305,9 +340,13 @@ static int zp_zephyr_zenoh_shell_session_open_only(z_owned_session_t *session)
 
 static bool zp_zephyr_zenoh_shell_iface_up(void)
 {
+#if defined(CONFIG_BOARD_NATIVE_SIM)
+	return true;
+#else
 	struct net_if *iface = net_if_get_default();
 
 	return iface != NULL && net_if_is_up(iface);
+#endif
 }
 
 static void zp_zephyr_zenoh_shell_thread_entry(void *arg0, void *arg1, void *arg2)
@@ -399,12 +438,12 @@ void zp_zephyr_zenoh_shell_status_get(struct zp_zephyr_zenoh_shell_status_snapsh
 	snapshot->open_failures = (uint32_t)atomic_get(&g_zp_zephyr_zenoh_shell_open_failures);
 	snapshot->sessions_opened = (uint32_t)atomic_get(&g_zp_zephyr_zenoh_shell_sessions_opened);
 
-	k_mutex_lock(&g_zp_zephyr_zenoh_shell_info_lock, K_FOREVER);
+	zp_zephyr_zenoh_shell_mutex_lock(&g_zp_zephyr_zenoh_shell_info_lock);
 	memcpy(snapshot->local_zid, g_zp_zephyr_zenoh_shell_info.local_zid,
 	       sizeof(snapshot->local_zid));
 	snapshot->routers = g_zp_zephyr_zenoh_shell_info.routers;
 	snapshot->peers = g_zp_zephyr_zenoh_shell_info.peers;
-	k_mutex_unlock(&g_zp_zephyr_zenoh_shell_info_lock);
+	zp_zephyr_zenoh_shell_mutex_unlock(&g_zp_zephyr_zenoh_shell_info_lock);
 }
 
 const char *zp_zephyr_zenoh_shell_state_name(enum zp_zephyr_zenoh_shell_state state)
@@ -423,9 +462,9 @@ const char *zp_zephyr_zenoh_shell_state_name(enum zp_zephyr_zenoh_shell_state st
 
 void zp_zephyr_zenoh_shell_sample_clear(void)
 {
-	k_mutex_lock(&g_zp_zephyr_zenoh_shell_store_lock, K_FOREVER);
+	zp_zephyr_zenoh_shell_mutex_lock(&g_zp_zephyr_zenoh_shell_store_lock);
 	zp_zephyr_zenoh_shell_sample_store_reset();
-	k_mutex_unlock(&g_zp_zephyr_zenoh_shell_store_lock);
+	zp_zephyr_zenoh_shell_mutex_unlock(&g_zp_zephyr_zenoh_shell_store_lock);
 }
 
 int zp_zephyr_zenoh_shell_put(const char *keyexpr, const uint8_t *payload, size_t payload_len)
@@ -442,7 +481,7 @@ int zp_zephyr_zenoh_shell_put(const char *keyexpr, const uint8_t *payload, size_
 	z_internal_null(&session);
 	z_internal_null(&bytes);
 
-	k_mutex_lock(&g_zp_zephyr_zenoh_shell_pub_lock, K_FOREVER);
+	zp_zephyr_zenoh_shell_mutex_lock(&g_zp_zephyr_zenoh_shell_pub_lock);
 
 	rc = z_view_keyexpr_from_str(&view, keyexpr);
 	if (rc < 0) {
@@ -468,7 +507,7 @@ int zp_zephyr_zenoh_shell_put(const char *keyexpr, const uint8_t *payload, size_
 out:
 	z_drop(z_move(bytes));
 	z_drop(z_move(session));
-	k_mutex_unlock(&g_zp_zephyr_zenoh_shell_pub_lock);
+	zp_zephyr_zenoh_shell_mutex_unlock(&g_zp_zephyr_zenoh_shell_pub_lock);
 	return rc;
 }
 
@@ -486,7 +525,7 @@ int zp_zephyr_zenoh_shell_delete(const char *keyexpr)
 	z_internal_null(&session);
 	z_delete_options_default(&options);
 
-	k_mutex_lock(&g_zp_zephyr_zenoh_shell_pub_lock, K_FOREVER);
+	zp_zephyr_zenoh_shell_mutex_lock(&g_zp_zephyr_zenoh_shell_pub_lock);
 
 	rc = z_view_keyexpr_from_str(&view, keyexpr);
 	if (rc < 0) {
@@ -502,7 +541,7 @@ int zp_zephyr_zenoh_shell_delete(const char *keyexpr)
 
 out:
 	z_drop(z_move(session));
-	k_mutex_unlock(&g_zp_zephyr_zenoh_shell_pub_lock);
+	zp_zephyr_zenoh_shell_mutex_unlock(&g_zp_zephyr_zenoh_shell_pub_lock);
 	return rc;
 }
 

@@ -22,6 +22,10 @@
 
 #include <errno.h>
 #include <stddef.h>
+#if defined(CONFIG_BOARD_NATIVE_SIM)
+#include <stdlib.h>
+#include <sys/random.h>
+#endif
 #include <sys/time.h>
 #include <unistd.h>
 
@@ -34,7 +38,15 @@ uint8_t z_random_u8(void) { return z_random_u32(); }
 
 uint16_t z_random_u16(void) { return z_random_u32(); }
 
-uint32_t z_random_u32(void) { return sys_rand32_get(); }
+uint32_t z_random_u32(void) {
+#if defined(CONFIG_BOARD_NATIVE_SIM)
+    uint32_t value = 0;
+    z_random_fill(&value, sizeof(value));
+    return value;
+#else
+    return sys_rand32_get();
+#endif
+}
 
 uint64_t z_random_u64(void) {
     uint64_t ret = 0;
@@ -45,20 +57,58 @@ uint64_t z_random_u64(void) {
     return ret;
 }
 
-void z_random_fill(void *buf, size_t len) { sys_rand_get(buf, len); }
+void z_random_fill(void *buf, size_t len) {
+#if defined(CONFIG_BOARD_NATIVE_SIM)
+    uint8_t *pos = (uint8_t *)buf;
 
-/*------------------ Memory ------------------*/
-void *z_malloc(size_t size) { return k_malloc(size); }
-
-void *z_realloc(void *ptr, size_t size) {
-    // k_realloc not implemented in Zephyr
-    return NULL;
+    while (len > 0) {
+        ssize_t ret = getrandom(pos, len, 0);
+        if (ret > 0) {
+            pos += ret;
+            len -= (size_t)ret;
+        } else if (ret < 0 && errno == EINTR) {
+            continue;
+        } else {
+            for (size_t i = 0; i < len; i++) {
+                pos[i] = (uint8_t)rand();
+            }
+            break;
+        }
+    }
+#else
+    sys_rand_get(buf, len);
+#endif
 }
 
-void z_free(void *ptr) { k_free(ptr); }
+/*------------------ Memory ------------------*/
+void *z_malloc(size_t size) {
+#if defined(CONFIG_BOARD_NATIVE_SIM)
+    return malloc(size);
+#else
+    return k_malloc(size);
+#endif
+}
+
+void *z_realloc(void *ptr, size_t size) {
+#if defined(CONFIG_BOARD_NATIVE_SIM)
+    return realloc(ptr, size);
+#else
+    // k_realloc not implemented in Zephyr
+    return NULL;
+#endif
+}
+
+void z_free(void *ptr) {
+#if defined(CONFIG_BOARD_NATIVE_SIM)
+    free(ptr);
+#else
+    k_free(ptr);
+#endif
+}
 
 #if Z_FEATURE_MULTI_THREAD == 1
 
+#if !defined(CONFIG_BOARD_NATIVE_SIM)
 #define Z_THREADS_NUM 8
 
 #ifdef CONFIG_TEST_EXTRA_STACK_SIZE
@@ -71,17 +121,24 @@ void z_free(void *ptr) { k_free(ptr); }
 
 K_THREAD_STACK_ARRAY_DEFINE(thread_stack_area, Z_THREADS_NUM, Z_PTHREAD_STACK_SIZE_DEFAULT);
 static atomic_t thread_index;
+#endif
 
 /*------------------ Task ------------------*/
 z_result_t _z_task_init(_z_task_t *task, z_task_attr_t *attr, void *(*fun)(void *), void *arg) {
     z_task_attr_t *lattr = NULL;
+#if defined(CONFIG_BOARD_NATIVE_SIM)
+    lattr = attr;
+#else
     z_task_attr_t tmp;
     if (attr == NULL) {
         unsigned int slot = (unsigned int)atomic_inc(&thread_index) % Z_THREADS_NUM;
         (void)pthread_attr_init(&tmp);
         (void)pthread_attr_setstack(&tmp, &thread_stack_area[slot], Z_PTHREAD_STACK_SIZE_DEFAULT);
         lattr = &tmp;
+    } else {
+        lattr = attr;
     }
+#endif
 
     _Z_CHECK_SYS_ERR(pthread_create(task, lattr, fun, arg));
 }
@@ -166,6 +223,9 @@ z_result_t _z_condvar_wait_until(_z_condvar_t *cv, _z_mutex_t *m, const z_clock_
 
 /*------------------ Sleep ------------------*/
 z_result_t z_sleep_us(size_t time) {
+#if defined(CONFIG_BOARD_NATIVE_SIM)
+    _Z_CHECK_SYS_ERR(usleep((useconds_t)time));
+#else
     int32_t rem = time;
     while (rem > 0) {
         rem = k_usleep(rem);  // This function is unlikely to work as expected without kernel tuning.
@@ -177,24 +237,33 @@ z_result_t z_sleep_us(size_t time) {
     }
 
     return 0;
+#endif
 }
 
 z_result_t z_sleep_ms(size_t time) {
+#if defined(CONFIG_BOARD_NATIVE_SIM)
+    _Z_CHECK_SYS_ERR(usleep((useconds_t)(time * 1000U)));
+#else
     int32_t rem = time;
     while (rem > 0) {
         rem = k_msleep(rem);
     }
 
     return 0;
+#endif
 }
 
 z_result_t z_sleep_s(size_t time) {
+#if defined(CONFIG_BOARD_NATIVE_SIM)
+    _Z_CHECK_SYS_ERR(usleep((useconds_t)(time * 1000000U)));
+#else
     int32_t rem = time;
     while (rem > 0) {
         rem = k_sleep(K_SECONDS(rem));
     }
 
     return 0;
+#endif
 }
 
 /*------------------ Instant ------------------*/

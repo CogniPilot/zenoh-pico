@@ -28,9 +28,15 @@
 #include <stdio.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#if defined(CONFIG_BOARD_NATIVE_SIM)
+#include <arpa/inet.h>
+#include <netinet/tcp.h>
+#include <sys/select.h>
+#else
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/posix/sys/select.h>
+#endif
 
 #include "zenoh-pico/collections/string.h"
 #include "zenoh-pico/config.h"
@@ -138,7 +144,7 @@ static z_result_t _z_ipv4_port_to_endpoint(const uint8_t *address, uint16_t port
     char ip[INET_ADDRSTRLEN] = {0};
     int written = -1;
 
-    if (zsock_inet_ntop(AF_INET, address, ip, sizeof(ip)) == NULL) {
+    if (inet_ntop(AF_INET, address, ip, sizeof(ip)) == NULL) {
         _Z_ERROR_RETURN(_Z_ERR_GENERIC);
     }
     written = snprintf(dst, dst_len, "%s:%u", ip, (unsigned)port);
@@ -152,7 +158,7 @@ static z_result_t _z_ipv6_port_to_endpoint(const uint8_t *address, uint16_t port
     char ip[INET6_ADDRSTRLEN] = {0};
     int written = -1;
 
-    if (zsock_inet_ntop(AF_INET6, address, ip, sizeof(ip)) == NULL) {
+    if (inet_ntop(AF_INET6, address, ip, sizeof(ip)) == NULL) {
         _Z_ERROR_RETURN(_Z_ERR_GENERIC);
     }
     written = snprintf(dst, dst_len, "[%s]:%u", ip, (unsigned)port);
@@ -704,6 +710,35 @@ z_result_t _z_listen_udp_multicast(_z_sys_net_socket_t *sock, const _z_sys_net_e
         // FIXME: iface passed into the locator is being ignored
         //        default if used instead
         if (ret == _Z_RES_OK) {
+#if defined(CONFIG_BOARD_NATIVE_SIM)
+            if (rep._iptcp->ai_family == AF_INET) {
+                struct ip_mreq mreq = {0};
+
+                mreq.imr_multiaddr = ((struct sockaddr_in *)rep._iptcp->ai_addr)->sin_addr;
+                mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+                if (setsockopt(sock->_fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq,
+                               sizeof(mreq)) < 0) {
+                    _Z_ERROR_LOG(_Z_ERR_GENERIC);
+                    ret = _Z_ERR_GENERIC;
+                }
+            }
+#if defined(IPV6_JOIN_GROUP)
+            else if (rep._iptcp->ai_family == AF_INET6) {
+                struct ipv6_mreq mreq = {0};
+
+                mreq.ipv6mr_multiaddr = ((struct sockaddr_in6 *)rep._iptcp->ai_addr)->sin6_addr;
+                if (setsockopt(sock->_fd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq,
+                               sizeof(mreq)) < 0) {
+                    _Z_ERROR_LOG(_Z_ERR_GENERIC);
+                    ret = _Z_ERR_GENERIC;
+                }
+            }
+#endif
+            else {
+                _Z_ERROR_LOG(_Z_ERR_GENERIC);
+                ret = _Z_ERR_GENERIC;
+            }
+#else
             struct net_if *ifa = NULL;
             ifa = net_if_get_default();
             if (ifa != NULL) {
@@ -744,6 +779,7 @@ z_result_t _z_listen_udp_multicast(_z_sys_net_socket_t *sock, const _z_sys_net_e
                 _Z_ERROR_LOG(_Z_ERR_GENERIC);
                 ret = _Z_ERR_GENERIC;
             }
+#endif
         }
 
         if (ret != _Z_RES_OK) {
@@ -764,6 +800,25 @@ void _z_close_udp_multicast(_z_sys_net_socket_t *sockrecv, _z_sys_net_socket_t *
                             const _z_sys_net_endpoint_t rep, const _z_sys_net_endpoint_t lep) {
     _ZP_UNUSED(lep);
     if (sockrecv->_fd >= 0) {
+#if defined(CONFIG_BOARD_NATIVE_SIM)
+        if (rep._iptcp->ai_family == AF_INET) {
+            struct ip_mreq mreq = {0};
+
+            mreq.imr_multiaddr = ((struct sockaddr_in *)rep._iptcp->ai_addr)->sin_addr;
+            mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+            (void)setsockopt(sockrecv->_fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq,
+                             sizeof(mreq));
+        }
+#if defined(IPV6_LEAVE_GROUP)
+        else if (rep._iptcp->ai_family == AF_INET6) {
+            struct ipv6_mreq mreq = {0};
+
+            mreq.ipv6mr_multiaddr = ((struct sockaddr_in6 *)rep._iptcp->ai_addr)->sin6_addr;
+            (void)setsockopt(sockrecv->_fd, IPPROTO_IPV6, IPV6_LEAVE_GROUP, &mreq,
+                             sizeof(mreq));
+        }
+#endif
+#else
         // FIXME: iface passed into the locator is being ignored
         //        default if used instead
         struct net_if *ifa = NULL;
@@ -803,6 +858,7 @@ void _z_close_udp_multicast(_z_sys_net_socket_t *sockrecv, _z_sys_net_socket_t *
                 // Required to be compliant with MISRA 15.7 rule
             }
         }
+#endif
     }
 
     if (sockrecv->_fd >= 0) {

@@ -1,6 +1,11 @@
 if(CONFIG_ZENOH_PICO)
 
 zephyr_compile_definitions(ZENOH_ZEPHYR)
+if(CONFIG_BOARD_NATIVE_SIM)
+  zephyr_compile_definitions(NO_POSIX_CHEATS _BSD_SOURCE _DEFAULT_SOURCE)
+else()
+  zephyr_compile_definitions(_POSIX_C_SOURCE=200809L)
+endif()
 zephyr_include_directories(../include)
 zephyr_library()
 
