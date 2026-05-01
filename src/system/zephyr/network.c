@@ -37,6 +37,7 @@
 #include <zephyr/net/socket.h>
 #include <zephyr/posix/sys/select.h>
 #endif
+#include <zephyr/logging/log.h>
 
 #include "zenoh-pico/collections/string.h"
 #include "zenoh-pico/config.h"
@@ -47,6 +48,8 @@
 #include "zenoh-pico/utils/encoding.h"
 #include "zenoh-pico/utils/logging.h"
 #include "zenoh-pico/utils/pointers.h"
+
+LOG_MODULE_REGISTER(zp_zephyr_zenoh_net, CONFIG_LOG_DEFAULT_LEVEL);
 
 z_result_t _z_socket_set_non_blocking(const _z_sys_net_socket_t *sock) {
     int flags = fcntl(sock->_fd, F_GETFL, 0);
@@ -70,6 +73,8 @@ static z_result_t _z_socket_set_recv_timeout_or_non_blocking(_z_sys_net_socket_t
     if (setsockopt(sock->_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(tv)) < 0) {
         // Zephyr can reject SO_RCVTIMEO on sockets that still support select().
         // Fall back to a select()-guarded blocking recv path instead of hanging forever.
+        LOG_WRN("zenoh socket fd=%d SO_RCVTIMEO failed errno=%d, using select() fallback",
+                sock->_fd, errno);
         sock->_recv_wait_before_read = true;
     }
 
@@ -85,6 +90,8 @@ static void _z_socket_set_recv_timeout_best_effort(_z_sys_net_socket_t *sock, ui
     tv.tv_sec = tout / (uint32_t)1000;
     tv.tv_usec = (tout % (uint32_t)1000) * (uint32_t)1000;
     if (setsockopt(sock->_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(tv)) < 0) {
+        LOG_WRN("zenoh socket fd=%d SO_RCVTIMEO failed errno=%d, using select() fallback",
+                sock->_fd, errno);
         sock->_recv_wait_before_read = true;
     }
 }
@@ -507,19 +514,18 @@ void _z_close_udp_unicast(_z_sys_net_socket_t *sock) {
 }
 
 size_t _z_read_udp_unicast(const _z_sys_net_socket_t sock, uint8_t *ptr, size_t len) {
-    struct sockaddr_storage raddr;
-    unsigned int addrlen = sizeof(struct sockaddr_storage);
-
     if (sock._recv_wait_before_read && !_z_socket_wait_readable_with_timeout(&sock)) {
+        LOG_DBG("zenoh udp rx timeout fd=%d timeout_ms=%u", sock._fd, (unsigned int)sock._recv_timeout_ms);
         return SIZE_MAX;
     }
-    ssize_t rb = recvfrom(sock._fd, ptr, len, 0, (struct sockaddr *)&raddr, &addrlen);
+    ssize_t rb = recvfrom(sock._fd, ptr, len, 0, NULL, NULL);
     if (rb < (ssize_t)0 && sock._recv_non_blocking &&
         (errno == EAGAIN || errno == EWOULDBLOCK) &&
         _z_socket_wait_readable_with_timeout(&sock)) {
-        rb = recvfrom(sock._fd, ptr, len, 0, (struct sockaddr *)&raddr, &addrlen);
+        rb = recvfrom(sock._fd, ptr, len, 0, NULL, NULL);
     }
     if (rb < (ssize_t)0) {
+        LOG_WRN("zenoh udp recvfrom failed fd=%d errno=%d", sock._fd, errno);
         rb = SIZE_MAX;
     }
 
@@ -546,7 +552,14 @@ size_t _z_read_exact_udp_unicast(const _z_sys_net_socket_t sock, uint8_t *ptr, s
 
 size_t _z_send_udp_unicast(const _z_sys_net_socket_t sock, const uint8_t *ptr, size_t len,
                            const _z_sys_net_endpoint_t rep) {
-    return sendto(sock._fd, ptr, len, 0, rep._iptcp->ai_addr, rep._iptcp->ai_addrlen);
+    ssize_t wb = sendto(sock._fd, ptr, len, 0, rep._iptcp->ai_addr, rep._iptcp->ai_addrlen);
+
+    if (wb < (ssize_t)0) {
+        LOG_WRN("zenoh udp sendto failed fd=%d errno=%d", sock._fd, errno);
+        return SIZE_MAX;
+    }
+
+    return (size_t)wb;
 }
 #endif
 

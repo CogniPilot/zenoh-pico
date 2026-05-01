@@ -282,7 +282,7 @@ z_result_t _z_unicast_handle_transport_message(_z_transport_unicast_t *ztu, _z_t
             break;
 
         case _Z_MID_T_KEEP_ALIVE: {
-            _Z_DEBUG("Received Z_KEEP_ALIVE message");
+            _Z_INFO("Received Z_KEEP_ALIVE message");
             _z_t_msg_keep_alive_clear(&t_msg->_body._keep_alive);
             break;
         }

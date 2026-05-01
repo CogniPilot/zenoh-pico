@@ -246,10 +246,9 @@ z_result_t _z_liveliness_process_token_undeclare(_z_session_t *zn, const _z_n_ms
 }
 
 z_result_t _z_liveliness_process_declare_final(_z_session_t *zn, const _z_n_msg_declare_t *decl) {
-    z_result_t ret = _Z_RES_OK;
 #if Z_FEATURE_QUERY == 1
     if (decl->_interest_id.has_value) {
-        ret = _z_liveliness_unregister_pending_query(zn, decl->_interest_id.value);
+        z_result_t ret = _z_liveliness_unregister_pending_query(zn, decl->_interest_id.value);
         if (ret != _Z_RES_OK) {
             _Z_ERROR_LOG(ret);
         } else {

@@ -35,7 +35,8 @@ void _z_session_set_transport_common_override(_z_session_transport_override_fn f
 }
 #endif
 
-#if Z_FEATURE_SUBSCRIPTION == 1 || Z_FEATURE_QUERYABLE == 1
+#if (Z_FEATURE_SUBSCRIPTION == 1 && Z_FEATURE_LOCAL_SUBSCRIBER == 1) || \
+    (Z_FEATURE_QUERYABLE == 1 && Z_FEATURE_LOCAL_QUERYABLE == 1)
 static _z_transport_common_t *_z_session_get_transport_common(_z_session_t *zn) {
 #if defined(Z_LOOPBACK_TESTING)
     if (_z_transport_common_override != NULL) {
@@ -57,13 +58,7 @@ static _z_transport_common_t *_z_session_get_transport_common(_z_session_t *zn) 
     }
     return NULL;
 }
-
-#else
-static _z_transport_common_t *_z_session_get_transport_common(_z_session_t *zn) {
-    _ZP_UNUSED(zn);
-    return NULL;
-}
-#endif  // Z_FEATURE_SUBSCRIPTION == 1 || Z_FEATURE_QUERYABLE == 1
+#endif
 
 #if Z_FEATURE_SUBSCRIPTION == 1 && Z_FEATURE_LOCAL_SUBSCRIBER == 1
 z_result_t _z_session_deliver_push_locally(_z_session_t *zn, const _z_keyexpr_t *keyexpr, _z_bytes_t *payload,
