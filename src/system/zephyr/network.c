@@ -12,7 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-#include <version.h>
+#include <zephyr/version.h>
 
 #if KERNEL_VERSION_MAJOR == 2
 #include <drivers/uart.h>
