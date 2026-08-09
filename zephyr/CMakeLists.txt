@@ -37,6 +37,7 @@ file(GLOB_RECURSE Sources
   "../src/session/*.c"
   "../src/transport/*.c"
   "../src/utils/*.c"
+  "../src/runtime/*.c"
   "../src/system/common/*.c"
 )
 
