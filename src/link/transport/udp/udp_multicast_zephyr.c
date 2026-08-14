@@ -200,12 +200,13 @@ z_result_t _z_listen_udp_multicast(_z_sys_net_socket_t *sock, const _z_sys_net_e
 
         // FIXME: iface passed into the locator is being ignored
         //        default if used instead
-        if (ret != _Z_RES_OK) {
+        if (ret == _Z_RES_OK) {
             struct net_if *ifa = NULL;
             ifa = net_if_get_default();
             if (ifa != NULL) {
                 // Join the multicast group
                 if (rep._iptcp->ai_family == AF_INET) {
+#if defined(CONFIG_NET_IPV4)
                     struct net_if_mcast_addr *mcast = NULL;
                     mcast = net_if_ipv4_maddr_add(ifa, &((struct sockaddr_in *)rep._iptcp->ai_addr)->sin_addr);
                     if (!mcast) {
@@ -216,6 +217,9 @@ z_result_t _z_listen_udp_multicast(_z_sys_net_socket_t *sock, const _z_sys_net_e
                     net_if_ipv4_maddr_join(ifa, mcast);
 #else
                     net_if_ipv4_maddr_join(mcast);
+#endif
+#else
+                    ret = _Z_ERR_GENERIC;
 #endif
                 } else if (rep._iptcp->ai_family == AF_INET6) {
                     struct net_if_mcast_addr *mcast = NULL;
@@ -264,6 +268,7 @@ void _z_close_udp_multicast(_z_sys_net_socket_t *sockrecv, _z_sys_net_socket_t *
         if (ifa != NULL) {
             struct net_if_mcast_addr *mcast = NULL;
             if (rep._iptcp->ai_family == AF_INET) {
+#if defined(CONFIG_NET_IPV4)
                 mcast = net_if_ipv4_maddr_add(ifa, &((struct sockaddr_in *)rep._iptcp->ai_addr)->sin_addr);
                 if (mcast != NULL) {
 #if KERNEL_VERSION_MAJOR == 3 && KERNEL_VERSION_MINOR > 3 || KERNEL_VERSION_MAJOR >= 4
@@ -275,6 +280,7 @@ void _z_close_udp_multicast(_z_sys_net_socket_t *sockrecv, _z_sys_net_socket_t *
                 } else {
                     // Do nothing. The socket will be closed in any case.
                 }
+#endif
             } else if (rep._iptcp->ai_family == AF_INET6) {
                 mcast = net_if_ipv6_maddr_add(ifa, &((struct sockaddr_in6 *)rep._iptcp->ai_addr)->sin6_addr);
                 if (mcast != NULL) {
