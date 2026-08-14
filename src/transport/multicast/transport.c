@@ -37,11 +37,21 @@ z_result_t _z_multicast_transport_create(_z_transport_t *zt, _z_link_t *zl,
         case Z_LINK_CAP_TRANSPORT_MULTICAST:
             zt->_type = _Z_TRANSPORT_MULTICAST_TYPE;
             ztm = &zt->_transport._multicast;
+            // Construct into zeroed storage. The caller does not zero zt, and
+            // zt->_type is now a multicast type, so a teardown triggered by any
+            // failure in the mutex or buffer allocation below dispatches to the
+            // multicast clear. That clear frees the peer list and the tx/rx
+            // buffers, which this function otherwise only assigns in the success
+            // block at the end. Zeroing first makes every not-yet-set field read
+            // back as NULL/0, so a partial-failure teardown frees an empty list
+            // and NULL buffers instead of stale pointers.
+            memset(ztm, 0, sizeof(*ztm));
             ztm->_send_f = _z_transport_tx_send_t_msg_wrapper;
             break;
         case Z_LINK_CAP_TRANSPORT_RAWETH:
             zt->_type = _Z_TRANSPORT_RAWETH_TYPE;
             ztm = &zt->_transport._raweth;
+            memset(ztm, 0, sizeof(*ztm));
             ztm->_send_f = _z_raweth_send_t_msg;
             break;
         default:
