@@ -5,6 +5,67 @@ config ZENOH_PICO
 
 if ZENOH_PICO
 
+choice ZENOH_PICO_ZEPHYR_THREADS
+	prompt "zenoh-pico platform backend"
+	default ZENOH_PICO_ZEPHYR_THREADS_NATIVE
+	help
+	  Selects how the zenoh-pico Zephyr platform layer implements tasks,
+	  mutexes, condition variables, and the monotonic clock.
+
+config ZENOH_PICO_ZEPHYR_THREADS_NATIVE
+	bool "Native Zephyr kernel primitives"
+	help
+	  Implement zenoh-pico tasks with k_thread, mutexes with k_mutex,
+	  condition variables with k_condvar, and the monotonic clock from
+	  kernel uptime. Kernel objects live in zenoh-pico owned memory, so
+	  no POSIX object pool sizing (MAX_PTHREAD_MUTEX_COUNT and friends)
+	  applies and POSIX threading support is not required.
+
+config ZENOH_PICO_ZEPHYR_THREADS_POSIX
+	bool "POSIX pthread primitives"
+	depends on POSIX_API || POSIX_THREADS
+	help
+	  Implement the zenoh-pico platform layer on the POSIX portability
+	  layer. The global POSIX object pools must then be sized for the
+	  session posture, in particular MAX_PTHREAD_MUTEX_COUNT and
+	  MAX_PTHREAD_COND_COUNT.
+
+endchoice
+
+config ZENOH_PICO_ZEPHYR_TASK_POOL_SIZE
+	int "Maximum concurrent zenoh-pico tasks"
+	depends on ZENOH_PICO_ZEPHYR_THREADS_NATIVE
+	default 4
+	range 1 16
+	help
+	  Number of slots in the static task pool. Each open session with the
+	  background read task holds one slot, and each z_task_init call with
+	  a pool stack holds one slot until the task is joined or a detached
+	  task terminates. Slots are reused across session restarts.
+
+config ZENOH_PICO_ZEPHYR_TASK_STACK_SIZE
+	int "zenoh-pico task stack size"
+	depends on ZENOH_PICO_ZEPHYR_THREADS_NATIVE
+	default MAIN_STACK_SIZE
+	help
+	  Stack size in bytes for each slot of the static task pool.
+
+config ZENOH_PICO_ZEPHYR_TASK_PRIORITY_CUSTOM
+	bool "Set a custom zenoh-pico task priority"
+	depends on ZENOH_PICO_ZEPHYR_THREADS_NATIVE
+	help
+	  Pool tasks default to K_LOWEST_APPLICATION_THREAD_PRIO, the same
+	  priority the POSIX layer gives pthreads. Enable to choose an
+	  explicit Zephyr priority instead.
+
+config ZENOH_PICO_ZEPHYR_TASK_PRIORITY
+	int "zenoh-pico task priority"
+	depends on ZENOH_PICO_ZEPHYR_TASK_PRIORITY_CUSTOM
+	default 0
+	help
+	  Zephyr thread priority for pool tasks. Lower numbers run first and
+	  negative values are cooperative.
+
 config ZENOH_PICO_LINK_SERIAL
 	bool "Serial Link"
 	help
@@ -66,4 +127,3 @@ config ZENOH_PICO_LINK_WS
 	  WS Link
 
 endif
-
