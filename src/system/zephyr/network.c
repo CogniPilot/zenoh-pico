@@ -50,6 +50,20 @@
 #include "zenoh-pico/utils/mutex.h"
 #include "zenoh-pico/utils/pointers.h"
 
+#if defined(CONFIG_ZENOH_PICO_ZEPHYR_SOCKET_PRIORITY)
+// Tag a socket with a Zephyr network priority so the local net stack and a
+// downstream TSN switch can classify zenoh traffic by class. Best effort: a
+// build whose socket layer lacks SO_PRIORITY leaves the socket unmarked.
+static void _z_socket_set_priority(int fd, int priority) {
+#if defined(SO_PRIORITY)
+    (void)zsock_setsockopt(fd, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(priority));
+#else
+    (void)fd;
+    (void)priority;
+#endif
+}
+#endif
+
 z_result_t _z_socket_set_blocking(const _z_sys_net_socket_t *sock, bool blocking) {
     int flags = zsock_fcntl(sock->_fd, ZVFS_F_GETFL, 0);
     if (flags == -1) {
@@ -256,6 +270,10 @@ z_result_t _z_open_tcp(_z_sys_net_socket_t *sock, const _z_sys_net_endpoint_t re
             // until further inspection. ret = _Z_ERR_GENERIC;
         }
 
+#if defined(CONFIG_ZENOH_PICO_ZEPHYR_SOCKET_PRIORITY)
+        _z_socket_set_priority(sock->_fd, CONFIG_ZENOH_PICO_ZEPHYR_UNICAST_PRIORITY);
+#endif
+
 #if Z_FEATURE_TCP_NODELAY == 1
         int optflag = 1;
         if ((ret == _Z_RES_OK) &&
@@ -426,6 +444,10 @@ z_result_t _z_open_udp_unicast(_z_sys_net_socket_t *sock, const _z_sys_net_endpo
             // until further inspection. ret = _Z_ERR_GENERIC;
         }
 
+#if defined(CONFIG_ZENOH_PICO_ZEPHYR_SOCKET_PRIORITY)
+        _z_socket_set_priority(sock->_fd, CONFIG_ZENOH_PICO_ZEPHYR_UNICAST_PRIORITY);
+#endif
+
         if (ret != _Z_RES_OK) {
             zsock_close(sock->_fd);
             sock->_fd = -1;
@@ -538,6 +560,9 @@ z_result_t _z_open_udp_multicast(_z_sys_net_socket_t *sock, const _z_sys_net_end
     if (addrlen != 0U) {
         sock->_fd = zsock_socket(rep._iptcp->ai_family, rep._iptcp->ai_socktype, rep._iptcp->ai_protocol);
         if (sock->_fd != -1) {
+#if defined(CONFIG_ZENOH_PICO_ZEPHYR_SOCKET_PRIORITY)
+            _z_socket_set_priority(sock->_fd, CONFIG_ZENOH_PICO_ZEPHYR_MULTICAST_PRIORITY);
+#endif
             z_time_t tv;
             tv.tv_sec = tout / (uint32_t)1000;
             tv.tv_usec = (tout % (uint32_t)1000) * (uint32_t)1000;
