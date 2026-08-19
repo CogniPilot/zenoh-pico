@@ -48,16 +48,19 @@ _z_id_t _z_id_from_string(const _z_string_t *str) {
     const char *s = _z_string_data(str);
     size_t len = _z_string_len(str);
 
-    // Expect exactly ZENOH_ID_SIZE * 2 lowercase hex characters
-    if (s == NULL || len != ZENOH_ID_SIZE * 2) {
+    if (s == NULL || len == 0 || len > ZENOH_ID_SIZE * 2) {
         return _z_id_empty();
     }
 
-    z_id_t id;
-    for (size_t i = 0; i < ZENOH_ID_SIZE; i++) {
-        size_t offset = (ZENOH_ID_SIZE - 1 - i) * 2;
-        char high = s[offset];
-        char low = s[offset + 1];
+    z_id_t id = _z_id_empty();
+    size_t offset = len;
+    size_t index = 0;
+    while (offset > 0) {
+        char low = s[--offset];
+        char high = '0';
+        if (offset > 0) {
+            high = s[--offset];
+        }
 
         if (!isxdigit(high) || !isxdigit(low) || isupper((unsigned char)high) || isupper((unsigned char)low)) {
             return _z_id_empty();
@@ -65,7 +68,7 @@ _z_id_t _z_id_from_string(const _z_string_t *str) {
 
         char byte_str[3] = {high, low, '\0'};
         unsigned long byte_val = strtoul(byte_str, NULL, 16);
-        id.id[i] = (uint8_t)byte_val;
+        id.id[index++] = (uint8_t)byte_val;
     }
     return id;
 }

@@ -22,6 +22,7 @@
 #include "zenoh-pico/collections/string.h"
 #include "zenoh-pico/protocol/core.h"
 #include "zenoh-pico/transport/transport.h"
+#include "zenoh-pico/utils/uuid.h"
 
 #undef NDEBUG
 #include <assert.h>
@@ -225,11 +226,38 @@ void z_id_to_string_test(void) {
     z_string_drop(z_string_move(&id_str));
 }
 
+void z_id_from_string_test(void) {
+    _z_string_t value = _z_string_alias_str("ae9a22d313fc");
+    z_id_t id = _z_id_from_string(&value);
+    const uint8_t expected[] = {0xfc, 0x13, 0xd3, 0x22, 0x9a, 0xae};
+
+    assert(memcmp(id.id, expected, sizeof(expected)) == 0);
+    for (size_t i = sizeof(expected); i < sizeof(id.id); i++) {
+        assert(id.id[i] == 0);
+    }
+
+    z_owned_string_t text;
+    z_id_to_string(&id, &text);
+    assert(z_string_len(z_string_loan(&text)) == 32);
+    assert(strncmp("00000000000000000000ae9a22d313fc", z_string_data(z_string_loan(&text)),
+                   z_string_len(z_string_loan(&text))) == 0);
+    z_string_drop(z_string_move(&text));
+
+    value = _z_string_alias_str("AE9A22D313FC");
+    id = _z_id_from_string(&value);
+    assert(_z_id_check(id) == false);
+
+    value = _z_string_alias_str("000000000000000000000000000000000");
+    id = _z_id_from_string(&value);
+    assert(_z_id_check(id) == false);
+}
+
 int main(void) {
     str_vec_list_intmap_test();
     z_slice_custom_delete_test();
     z_string_array_test();
     z_id_to_string_test();
+    z_id_from_string_test();
 
     return 0;
 }

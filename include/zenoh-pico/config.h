@@ -20,17 +20,41 @@
 #else
 
 /*--- CMake generated config; pass values to CMake to change the following tokens ---*/
+/* Every value below can also be overridden per build with a compiler -D
+ * definition (the Zephyr module injects Z_FEATURE_* values from Kconfig this
+ * way), so each define is guarded and the generated header only supplies a
+ * default. */
+#ifndef Z_FRAG_MAX_SIZE
 #define Z_FRAG_MAX_SIZE 4096
+#endif
+#ifndef Z_BATCH_UNICAST_SIZE
 #define Z_BATCH_UNICAST_SIZE 2048
+#endif
+#ifndef Z_BATCH_MULTICAST_SIZE
 #define Z_BATCH_MULTICAST_SIZE 2048
+#endif
+#ifndef Z_CONFIG_SOCKET_TIMEOUT
 #define Z_CONFIG_SOCKET_TIMEOUT 100
+#endif
+#ifndef Z_TRANSPORT_LEASE
 #define Z_TRANSPORT_LEASE 10000
+#endif
+#ifndef Z_TRANSPORT_LEASE_EXPIRE_FACTOR
 #define Z_TRANSPORT_LEASE_EXPIRE_FACTOR 3
+#endif
+#ifndef Z_RUNTIME_MAX_TASKS
 #define Z_RUNTIME_MAX_TASKS 64
+#endif
+#ifndef Z_TRANSPORT_ACCEPT_TIMEOUT
 #define Z_TRANSPORT_ACCEPT_TIMEOUT 1000
+#endif
+#ifndef Z_TRANSPORT_CONNECT_TIMEOUT
 #define Z_TRANSPORT_CONNECT_TIMEOUT 10000
+#endif
 
+#ifndef Z_FEATURE_UNSTABLE_API
 /* #undef Z_FEATURE_UNSTABLE_API */
+#endif
 #ifndef Z_FEATURE_CONNECTIVITY
 #define Z_FEATURE_CONNECTIVITY 0
 #endif
@@ -83,19 +107,13 @@
 #define Z_FEATURE_LINK_TLS 0
 #endif
 #ifndef Z_FEATURE_SCOUTING
-#ifndef Z_FEATURE_SCOUTING
 #define Z_FEATURE_SCOUTING 1
 #endif
-#endif
-#ifndef Z_FEATURE_LINK_UDP_MULTICAST
 #ifndef Z_FEATURE_LINK_UDP_MULTICAST
 #define Z_FEATURE_LINK_UDP_MULTICAST 1
 #endif
-#endif
-#ifndef Z_FEATURE_LINK_UDP_UNICAST
 #ifndef Z_FEATURE_LINK_UDP_UNICAST
 #define Z_FEATURE_LINK_UDP_UNICAST 1
-#endif
 #endif
 #ifndef Z_FEATURE_MULTICAST_TRANSPORT
 #define Z_FEATURE_MULTICAST_TRANSPORT 1
@@ -231,7 +249,7 @@
 
 /**
  * A configurable and static Zenoh ID to be used on Zenoh Sessions.
- * Accepted values : `<UUDI 128-bit>`.
+ * Accepted values : 1 to 32 lowercase hexadecimal digits.
  */
 #define Z_CONFIG_SESSION_ZID_KEY 0x49
 

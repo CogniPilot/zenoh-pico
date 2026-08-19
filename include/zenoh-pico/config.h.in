@@ -249,7 +249,7 @@
 
 /**
  * A configurable and static Zenoh ID to be used on Zenoh Sessions.
- * Accepted values : `<UUDI 128-bit>`.
+ * Accepted values : 1 to 32 lowercase hexadecimal digits.
  */
 #define Z_CONFIG_SESSION_ZID_KEY 0x49
 

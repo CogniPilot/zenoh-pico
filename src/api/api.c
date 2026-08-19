@@ -816,7 +816,8 @@ z_result_t z_scout(z_moved_config_t *config, z_moved_closure_hello_t *callback, 
     _z_id_t zid = _z_id_empty();
     char *zid_str = _z_config_get(&config->_this._val, Z_CONFIG_SESSION_ZID_KEY);
     if (zid_str != NULL) {
-        _z_uuid_to_bytes(zid.id, zid_str);
+        _z_string_t value = _z_string_alias_str(zid_str);
+        zid = _z_id_from_string(&value);
     }
 
     _z_scout(what, zid, &mcast_locator, timeout, __z_hello_handler, wrapped_ctx, callback->_this._val.drop, ctx);
@@ -847,7 +848,8 @@ static _z_id_t _z_session_get_zid(const _z_config_t *config) {
     _z_id_t zid = _z_id_empty();
     char *opt_as_str = _z_config_get(config, Z_CONFIG_SESSION_ZID_KEY);
     if (opt_as_str != NULL) {
-        _z_uuid_to_bytes(zid.id, opt_as_str);
+        _z_string_t value = _z_string_alias_str(opt_as_str);
+        zid = _z_id_from_string(&value);
     } else {
         _z_session_generate_zid(&zid, Z_ZID_LENGTH);
     }
