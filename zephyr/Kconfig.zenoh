@@ -5,6 +5,12 @@ config ZENOH_PICO
 
 if ZENOH_PICO
 
+config ZENOH_PICO_UNSTABLE_API
+	bool "Unstable API support"
+	default n
+	help
+	  Enable zenoh-pico APIs that have not reached the stable API surface.
+
 choice ZENOH_PICO_ZEPHYR_THREADS
 	prompt "zenoh-pico platform backend"
 	default ZENOH_PICO_ZEPHYR_THREADS_NATIVE

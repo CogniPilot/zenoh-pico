@@ -13,7 +13,7 @@ function(configure_zenoh_feature config)
   endif()
 endfunction()
 
-
+configure_zenoh_feature(CONFIG_ZENOH_PICO_UNSTABLE_API)
 configure_zenoh_feature(CONFIG_ZENOH_PICO_LINK_SERIAL)
 configure_zenoh_feature(CONFIG_ZENOH_PICO_MULTI_THREAD)
 configure_zenoh_feature(CONFIG_ZENOH_PICO_PUBLICATION)
