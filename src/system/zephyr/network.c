@@ -32,6 +32,7 @@
 // which is what the socket ioctl backend implements.
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <zephyr/net/net_if.h>
@@ -56,7 +57,8 @@
 // build whose socket layer lacks SO_PRIORITY leaves the socket unmarked.
 static void _z_socket_set_priority(int fd, int priority) {
 #if defined(SO_PRIORITY)
-    (void)zsock_setsockopt(fd, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(priority));
+    const uint8_t socket_priority = (uint8_t)priority;
+    (void)zsock_setsockopt(fd, SOL_SOCKET, SO_PRIORITY, &socket_priority, sizeof(socket_priority));
 #else
     (void)fd;
     (void)priority;
