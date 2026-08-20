@@ -483,8 +483,18 @@ void _z_close_udp_unicast(_z_sys_net_socket_t *sock) {
 }
 
 size_t _z_read_udp_unicast(const _z_sys_net_socket_t sock, uint8_t *ptr, size_t len) {
+    struct zsock_pollfd pollfd = {
+        .fd = sock._fd,
+        .events = ZSOCK_POLLIN,
+        .revents = 0,
+    };
     struct sockaddr_storage raddr;
     socklen_t addrlen = sizeof(struct sockaddr_storage);
+
+    int ready = zsock_poll(&pollfd, 1, Z_CONFIG_SOCKET_TIMEOUT);
+    if ((ready <= 0) || ((pollfd.revents & ZSOCK_POLLIN) == 0)) {
+        return SIZE_MAX;
+    }
 
     ssize_t rb = zsock_recvfrom(sock._fd, ptr, len, 0, (struct sockaddr *)&raddr, &addrlen);
     if (rb < (ssize_t)0) {
