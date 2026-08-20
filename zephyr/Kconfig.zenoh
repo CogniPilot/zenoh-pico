@@ -11,6 +11,31 @@ config ZENOH_PICO_UNSTABLE_API
 	help
 	  Enable zenoh-pico APIs that have not reached the stable API surface.
 
+choice ZENOH_PICO_LOG_LEVEL
+	prompt "zenoh-pico log level"
+	default ZENOH_PICO_LOG_OFF
+	help
+	  Select the compile-time zenoh-pico library log level. Logging is off by
+	  default so embedded applications pay no formatting or console cost unless
+	  they explicitly enable it.
+
+config ZENOH_PICO_LOG_OFF
+	bool "Off"
+
+config ZENOH_PICO_LOG_ERROR
+	bool "Error"
+
+config ZENOH_PICO_LOG_WARN
+	bool "Warning"
+
+config ZENOH_PICO_LOG_INFO
+	bool "Informational"
+
+config ZENOH_PICO_LOG_DEBUG
+	bool "Debug"
+
+endchoice
+
 choice ZENOH_PICO_ZEPHYR_THREADS
 	prompt "zenoh-pico platform backend"
 	default ZENOH_PICO_ZEPHYR_THREADS_NATIVE

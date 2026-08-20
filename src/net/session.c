@@ -235,15 +235,16 @@ _z_fut_fn_result_t _z_client_reopen_task_fn(void *ztc_arg, _z_executor_t *execut
     _z_session_transport_mutex_unlock(s);
     if (ret != _Z_RES_OK) {
         if (ret == _Z_ERR_TRANSPORT_OPEN_FAILED || ret == _Z_ERR_SCOUT_NO_RESULTS ||
-            ret == _Z_ERR_TRANSPORT_TX_FAILED || ret == _Z_ERR_TRANSPORT_RX_FAILED) {
-            _Z_DEBUG("Reopen failed, next try in 1s");
+            ret == _Z_ERR_TRANSPORT_TX_FAILED || ret == _Z_ERR_TRANSPORT_RX_FAILED ||
+            ret == _Z_ERR_TRANSPORT_RX_DURATION_EXPIRED) {
+            _Z_INFO("Reopen failed with %d, next try in 1s", ret);
             tc->_session = _z_session_rc_clone_as_weak(&zs);
             tc->_state = _Z_TRANSPORT_STATE_RECONNECTING;
             tc->_tasks = tasks_handles;
             _z_session_rc_drop(&zs);
             return _z_fut_fn_result_wake_up_after(1000);
         } else {
-            _Z_ERROR("Reopen failed, will not retry");
+            _Z_ERROR("Reopen failed with %d, will not retry", ret);
             tc->_state = _Z_TRANSPORT_STATE_CLOSED;
             _z_session_rc_drop(&zs);
             return _z_fut_fn_result_ready();
@@ -257,7 +258,7 @@ _z_fut_fn_result_t _z_client_reopen_task_fn(void *ztc_arg, _z_executor_t *execut
             _z_network_message_t *n_msg = _z_network_message_slist_value(iter);
             ret = _z_send_n_msg(s, n_msg, Z_RELIABILITY_RELIABLE, Z_CONGESTION_CONTROL_BLOCK, NULL);
             if (ret != _Z_RES_OK) {
-                _Z_DEBUG("Send message during reopen failed: %i", ret);
+                _Z_INFO("Declaration replay during reopen failed: %i", ret);
                 _z_transport_clear(&s->_tp);
                 tc->_session = _z_session_rc_clone_as_weak(&zs);
                 tc->_state = _Z_TRANSPORT_STATE_RECONNECTING;
@@ -269,7 +270,7 @@ _z_fut_fn_result_t _z_client_reopen_task_fn(void *ztc_arg, _z_executor_t *execut
         }
     }
     _z_session_rc_drop(&zs);
-    _Z_DEBUG("Reconnected successfully");
+    _Z_INFO("Reconnected successfully");
     // Resume all sibling tasks that suspended themselves while waiting for reconnection.
     for (size_t i = 0; i < _Z_TRANSPORT_TASK_COUNT; i++) {
         _z_executor_resume_suspended_fut(executor, &tc->_tasks._task_handles[i]);
