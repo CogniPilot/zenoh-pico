@@ -18,6 +18,7 @@
 #if defined(ZP_PLATFORM_SOCKET_ZEPHYR) && (Z_FEATURE_LINK_UDP_MULTICAST == 1)
 
 #include <netdb.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -71,6 +72,12 @@ z_result_t _z_open_udp_multicast(_z_sys_net_socket_t *sock, const _z_sys_net_end
     if (addrlen != 0U) {
         sock->_fd = socket(rep._iptcp->ai_family, rep._iptcp->ai_socktype, rep._iptcp->ai_protocol);
         if (sock->_fd != -1) {
+#if defined(CONFIG_ZENOH_PICO_ZEPHYR_SOCKET_PRIORITY) && defined(SO_PRIORITY)
+            // Best effort: tag the socket with a network priority for TSN traffic
+            // classification. On Zephyr the SO_PRIORITY option value is a single byte.
+            const uint8_t socket_priority = (uint8_t)CONFIG_ZENOH_PICO_ZEPHYR_MULTICAST_PRIORITY;
+            (void)setsockopt(sock->_fd, SOL_SOCKET, SO_PRIORITY, &socket_priority, sizeof(socket_priority));
+#endif
             z_time_t tv;
             tv.tv_sec = tout / (uint32_t)1000;
             tv.tv_usec = (tout % (uint32_t)1000) * (uint32_t)1000;

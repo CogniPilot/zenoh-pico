@@ -65,5 +65,33 @@ config ZENOH_PICO_LINK_WS
 	help
 	  WS Link
 
+config ZENOH_PICO_ZEPHYR_SOCKET_PRIORITY
+	bool "Mark zenoh sockets with a network priority (TSN class)"
+	help
+	  Set SO_PRIORITY on the zenoh-pico UDP and TCP sockets so the Zephyr
+	  network stack can classify zenoh traffic for TSN. Multicast and
+	  unicast (including TCP) sockets take separate priorities, so they can
+	  map to different egress queues or IEEE 802.1Q priority (PCP) values.
+	  A PCP is only carried on the wire when the egress interface is VLAN
+	  tagged, otherwise the priority steers the local transmit queue only.
+
+config ZENOH_PICO_ZEPHYR_MULTICAST_PRIORITY
+	int "Network priority for multicast sockets"
+	depends on ZENOH_PICO_ZEPHYR_SOCKET_PRIORITY
+	default 1
+	range 0 7
+	help
+	  SO_PRIORITY applied to UDP multicast sockets. Range 0 to 7, matching
+	  the IEEE 802.1Q priority values.
+
+config ZENOH_PICO_ZEPHYR_UNICAST_PRIORITY
+	int "Network priority for unicast and TCP sockets"
+	depends on ZENOH_PICO_ZEPHYR_SOCKET_PRIORITY
+	default 5
+	range 0 7
+	help
+	  SO_PRIORITY applied to UDP unicast and TCP sockets. Range 0 to 7,
+	  matching the IEEE 802.1Q priority values.
+
 endif
 

@@ -18,6 +18,7 @@
 
 #include <netdb.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -67,6 +68,13 @@ static z_result_t _z_tcp_zephyr_open(_z_sys_net_socket_t *sock, const _z_sys_net
             /* Zephyr may reject this option depending on the network stack configuration. */
             _Z_ERROR_LOG(_Z_ERR_GENERIC);
         }
+
+#if defined(CONFIG_ZENOH_PICO_ZEPHYR_SOCKET_PRIORITY) && defined(SO_PRIORITY)
+        // Best effort: tag the socket with a network priority for TSN traffic
+        // classification. On Zephyr the SO_PRIORITY option value is a single byte.
+        const uint8_t socket_priority = (uint8_t)CONFIG_ZENOH_PICO_ZEPHYR_UNICAST_PRIORITY;
+        (void)setsockopt(sock->_fd, SOL_SOCKET, SO_PRIORITY, &socket_priority, sizeof(socket_priority));
+#endif
 
 #if Z_FEATURE_TCP_NODELAY == 1
         int optflag = 1;
