@@ -26,6 +26,14 @@
 #endif
 #include "zenoh-pico/runtime/runtime.h"
 
+// Period at which the accept task polls the listen socket while no connection
+// is pending. A connected peer waits up to this long before its InitSyn is
+// read, so it must stay below the dialing peer's handshake receive timeout.
+// Override with -DZ_TRANSPORT_ACCEPT_POLL_PERIOD_MS=<ms>.
+#ifndef Z_TRANSPORT_ACCEPT_POLL_PERIOD_MS
+#define Z_TRANSPORT_ACCEPT_POLL_PERIOD_MS 1000
+#endif
+
 #if Z_FEATURE_UNICAST_TRANSPORT == 1 && Z_FEATURE_UNICAST_PEER == 1
 #if Z_FEATURE_CONNECTIVITY == 1
 static void _zp_unicast_dispatch_connected_event(_z_transport_unicast_t *ztu, const _z_transport_peer_unicast_t *peer) {
@@ -77,7 +85,7 @@ _z_fut_fn_result_t _zp_unicast_accept_task_fn(void *ctx, _z_executor_t *executor
             _Z_INFO("Accept socket was closed");
             return _z_fut_fn_result_ready();
         } else {  // wait for a while before retry
-            return _z_fut_fn_result_wake_up_after(1000);
+            return _z_fut_fn_result_wake_up_after(Z_TRANSPORT_ACCEPT_POLL_PERIOD_MS);
         }
     }
     if (_z_transport_peer_unicast_slist_len(ztu->_peers) >= Z_LISTEN_MAX_CONNECTION_NB) {
